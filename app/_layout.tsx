@@ -1,29 +1,45 @@
-import { Tabs } from "expo-router";
-import { colors } from "../lib/theme";
+import { useEffect, useState } from "react";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { getAuth, AuthUser } from "../lib/auth";
 
 export default function RootLayout() {
+  const router = useRouter();
+  const segments = useSegments();
+  const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
+  const [ready, setReady] = useState(false);
+
+  // Read auth on every navigation change
+  useEffect(() => {
+    getAuth().then((u) => {
+      setUser(u);
+      setReady(true);
+    });
+  }, [segments]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    const inSenior = segments[0] === "(senior)";
+    const inVolunteer = segments[0] === "(volunteer)";
+
+    if (!user) {
+      // Not logged in — only allow landing and auth pages
+      if (inSenior || inVolunteer) {
+        router.replace("/");
+      }
+    } else if (user.role === "senior") {
+      if (!inSenior) router.replace("/(senior)/home");
+    } else if (user.role === "volunteer") {
+      if (!inVolunteer) router.replace("/(volunteer)/dashboard");
+    }
+  }, [user, ready]);
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: 64,
-          paddingBottom: 10,
-        },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarLabelStyle: {
-          fontSize: 13,
-          fontWeight: "600",
-        },
-      }}
-    >
-      <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="senior" options={{ title: "Senior" }} />
-      <Tabs.Screen name="volunteer" options={{ title: "Volunteer" }} />
-      <Tabs.Screen name="match" options={{ title: "Outings" }} />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="auth" />
+      <Stack.Screen name="(senior)" />
+      <Stack.Screen name="(volunteer)" />
+    </Stack>
   );
 }

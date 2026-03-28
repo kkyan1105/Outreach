@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 import { MATCHING_SYSTEM_PROMPT } from "./matching-prompt";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || "placeholder",
+  });
+}
 
 interface MatchInput {
   pending_requests: {
@@ -40,7 +42,7 @@ interface MatchOutput {
 }
 
 export async function runMatching(input: MatchInput): Promise<MatchOutput> {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: "gpt-4o",
     temperature: 0,
     messages: [

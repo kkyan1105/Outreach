@@ -8,13 +8,13 @@ const router = Router();
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   const {
-    role, email, password, name, phone, address,
+    role, phone, password, name, address,
     interests, mobility_notes, emergency_contact,
     vehicle_type, max_passengers, availability,
   } = req.body;
 
-  if (!role || !email || !password || !name || !address) {
-    return res.status(400).json({ data: null, error: "role, email, password, name, and address are required" });
+  if (!role || !phone || !password || !name || !address) {
+    return res.status(400).json({ data: null, error: "role, phone, password, name, and address are required" });
   }
 
   if (!["senior", "volunteer"].includes(role)) {
@@ -23,15 +23,15 @@ router.post("/register", async (req, res) => {
 
   const table = role === "senior" ? "seniors" : "volunteers";
 
-  // Check if email already exists
+  // Check if phone already exists
   const { data: existing } = await supabase
     .from(table)
     .select("id")
-    .eq("email", email)
+    .eq("phone", phone)
     .single();
 
   if (existing) {
-    return res.status(400).json({ data: null, error: "Email already registered" });
+    return res.status(400).json({ data: null, error: "Phone number already registered" });
   }
 
   // Geocode address
@@ -50,11 +50,10 @@ router.post("/register", async (req, res) => {
   // Build insert object
   let insertData: any = {
     name,
-    phone: phone || "",
+    phone,
     address,
     lat,
     lng,
-    email,
     password_hash,
   };
 
@@ -71,7 +70,7 @@ router.post("/register", async (req, res) => {
   const { data, error } = await supabase
     .from(table)
     .insert(insertData)
-    .select("id, name, email")
+    .select("id, name, phone")
     .single();
 
   if (error) {
@@ -79,17 +78,17 @@ router.post("/register", async (req, res) => {
   }
 
   res.json({
-    data: { id: data.id, role, name: data.name, email: data.email },
+    data: { id: data.id, role, name: data.name, phone: data.phone },
     error: null,
   });
 });
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
-  const { role, email, password } = req.body;
+  const { role, phone, password } = req.body;
 
-  if (!role || !email || !password) {
-    return res.status(400).json({ data: null, error: "role, email, and password are required" });
+  if (!role || !phone || !password) {
+    return res.status(400).json({ data: null, error: "role, phone, and password are required" });
   }
 
   if (!["senior", "volunteer"].includes(role)) {
@@ -100,21 +99,21 @@ router.post("/login", async (req, res) => {
 
   const { data: user, error } = await supabase
     .from(table)
-    .select("id, name, email, password_hash")
-    .eq("email", email)
+    .select("id, name, phone, password_hash")
+    .eq("phone", phone)
     .single();
 
   if (error || !user) {
-    return res.status(401).json({ data: null, error: "Invalid email or password" });
+    return res.status(401).json({ data: null, error: "Invalid phone number or password" });
   }
 
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) {
-    return res.status(401).json({ data: null, error: "Invalid email or password" });
+    return res.status(401).json({ data: null, error: "Invalid phone number or password" });
   }
 
   res.json({
-    data: { id: user.id, role, name: user.name, email: user.email },
+    data: { id: user.id, role, name: user.name, phone: user.phone },
     error: null,
   });
 });

@@ -7,18 +7,15 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>
-          Elderly{" "}
-          <Text style={styles.titleAccent}>Care</Text>
+          Elderly <Text style={styles.titleAccent}>Care</Text>
         </Text>
         <Text style={styles.subtitle}>
           AI-powered group outings for seniors.{"\n"}No one rides alone.
         </Text>
       </View>
 
-      {/* Stats row */}
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: colors.primaryLight }]}>
           <Text style={[styles.statNumber, { color: colors.primary }]}>6M</Text>
@@ -30,7 +27,6 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* How it works */}
       <Text style={styles.sectionTitle}>How it works</Text>
       <View style={styles.stepsCard}>
         {[
@@ -47,52 +43,50 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* CTA Buttons */}
       <Text style={styles.sectionTitle}>Get started</Text>
 
-      <TouchableOpacity
-        style={[styles.ctaButton, { backgroundColor: colors.primary }]}
-        onPress={() => router.push("/senior/register")}
-      >
-        <Text style={styles.ctaButtonText}>I'm a Senior</Text>
-        <Text style={styles.ctaButtonSub}>Request a group outing</Text>
-      </TouchableOpacity>
+      <View style={styles.roleBlock}>
+        <TouchableOpacity
+          style={[styles.loginButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push("/auth/login?role=senior")}
+        >
+          <Text style={styles.loginButtonText}>Log in as Senior</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push("/auth/register?role=senior")}
+        >
+          <Text style={styles.registerLink}>New here? Register as a Senior</Text>
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity
-        style={[styles.ctaButton, { backgroundColor: colors.secondary }]}
-        onPress={() => router.push("/volunteer/register")}
-      >
-        <Text style={styles.ctaButtonText}>I'm a Volunteer</Text>
-        <Text style={styles.ctaButtonSub}>Offer a ride, make a difference</Text>
-      </TouchableOpacity>
+      <View style={styles.roleBlock}>
+        <TouchableOpacity
+          style={[styles.loginButton, { backgroundColor: colors.secondary }]}
+          onPress={() => router.push("/auth/login?role=volunteer")}
+        >
+          <Text style={styles.loginButtonText}>Log in as Volunteer</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push("/auth/register?role=volunteer")}
+        >
+          <Text style={styles.registerLink}>New here? Register as a Volunteer</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.lg,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.lg, paddingTop: 60, paddingBottom: 40 },
+  header: { alignItems: "center", marginBottom: spacing.xl },
   title: {
     fontSize: fontSize.xxl,
     fontWeight: "800",
     color: colors.textPrimary,
     textAlign: "center",
-    letterSpacing: -0.5,
   },
-  titleAccent: {
-    color: colors.primary,
-  },
+  titleAccent: { color: colors.primary },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textSecondary,
@@ -100,21 +94,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     lineHeight: 26,
   },
-  statsRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.xl,
-  },
+  statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xl },
   statCard: {
     flex: 1,
     borderRadius: radius.md,
     padding: spacing.md,
     alignItems: "center",
   },
-  statNumber: {
-    fontSize: fontSize.xl,
-    fontWeight: "800",
-  },
+  statNumber: { fontSize: fontSize.xl, fontWeight: "800" },
   statLabel: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
@@ -135,11 +122,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     gap: spacing.md,
   },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   stepBadge: {
     width: 36,
     height: 36,
@@ -148,31 +131,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  stepNum: {
-    fontSize: fontSize.sm,
-    fontWeight: "700",
-    color: colors.primary,
-  },
-  stepText: {
-    flex: 1,
-    fontSize: fontSize.md,
-    color: colors.textPrimary,
-    lineHeight: 24,
-  },
-  ctaButton: {
+  stepNum: { fontSize: fontSize.sm, fontWeight: "700", color: colors.primary },
+  stepText: { flex: 1, fontSize: fontSize.md, color: colors.textPrimary, lineHeight: 24 },
+  roleBlock: { marginBottom: spacing.lg },
+  loginButton: {
     borderRadius: radius.pill,
     padding: spacing.md,
     alignItems: "center",
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  ctaButtonText: {
+  loginButtonText: {
     fontSize: fontSize.lg,
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  ctaButtonSub: {
-    fontSize: fontSize.xs,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
+  registerLink: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    textDecorationLine: "underline",
+    paddingVertical: 4,
   },
 });
