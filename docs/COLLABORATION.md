@@ -1,116 +1,244 @@
 # Collaboration Guide — 双人分工文档
 
-## 分工原则
-
-项目分成两个独立模块，通过 **API 接口约定** 连接。两个人可以同时开发，互不阻塞。
-
-```
-┌─────────────────────┐     API 接口约定      ┌─────────────────────┐
-│     Person A        │ ◄──────────────────► │     Person B        │
-│  Expo 页面 + 组件    │                       │  Express API + AI   │
-│  地图展示            │                       │  数据库              │
-└─────────────────────┘                       └─────────────────────┘
-```
-
 ---
 
-## ✅ 已完成（Phase 1-2）
+## ✅ 已完成
 
-### Person A（前端）已完成
-- `lib/theme.ts` — 全局设计 token
-- `app/_layout.tsx` — Tab 导航
-- `app/index.tsx` — Landing page
-- `app/senior/register.tsx` — Senior 注册表单 → `POST /api/seniors`
-- `app/volunteer/register.tsx` — Volunteer 注册表单 → `POST /api/volunteers`
-- `app/senior/request.tsx` — 出行请求表单 → `POST /api/requests`
-
-### Person B（后端）已完成
-- Supabase 建表（seniors, volunteers, outing_requests, outings）
+### 后端（Person B）
+- Supabase 建表：seniors, volunteers, outing_requests, outings
 - Seed 数据（5 seniors, 2 volunteers）
-- `POST/GET /api/seniors`
-- `POST/GET /api/volunteers`
-- `POST/GET /api/requests`
-- `POST /api/match` — Claude AI 匹配 + DBSCAN 地理聚类
-- `GET/PATCH /api/outings` — 查看 outings + 志愿者确认/取消
-- `GET /api/stats` — Dashboard 统计
+- 所有 API 接口：seniors / volunteers / requests / match / outings / stats
+
+### 前端（Person A）
+- `lib/theme.ts` — 全局设计 token
+- `app/index.tsx` — Landing / Home page
+- `app/senior/register.tsx` — Senior 注册表单
+- `app/volunteer/register.tsx` — Volunteer 注册表单
+- `app/senior/request.tsx` — 出行请求表单
+- `app/volunteer/dashboard.tsx` — Volunteer Dashboard
+- `app/senior/status.tsx` — Senior 状态页
 
 ---
 
-## 🔄 当前阶段（Phase 3）
+## 🔄 当前阶段：Auth + 双端分离
 
-### Person A — Volunteer Dashboard + Senior 状态页
+### 背景与目标
 
-**负责文件：**
-- `app/volunteer/dashboard.tsx`
-- `app/senior/status.tsx`
+现在 app 是 Tab 杂糅模式，Senior 和 Volunteer 功能混在一起。需要：
+1. 加登录/注册功能，区分身份
+2. 登录后完全分开两端的导航结构
+3. Home page 只在未登录时展示
 
-#### Volunteer Dashboard (`app/volunteer/dashboard.tsx`)
-- 页面入口：Tab 底部 "Volunteer" → Dashboard
-- 输入：URL 参数 `?volunteer_id=xxx`（注册后自动跳转过来）
-- 调用：`GET /api/outings?volunteer_id=xxx`
-- 展示每个 outing 卡片：
-  - 几月几号、几点出发
-  - 目的地类型
-  - 几位乘客（seniors 名字列表）
-  - Accept / Decline 按钮
-- Accept → `PATCH /api/outings/:id` body: `{ "status": "confirmed" }`
-- Decline → `PATCH /api/outings/:id` body: `{ "status": "cancelled" }`
+### 新的路由结构
 
-#### Senior 状态页 (`app/senior/status.tsx`)
-- 输入：URL 参数 `?senior_id=xxx`（注册后自动跳转过来）
-- 调用：`GET /api/requests?senior_id=xxx`
-- 展示每条请求的状态卡片：
-  - 目的地、日期、时间
-  - 状态 badge：pending（等待匹配）/ matched（已匹配）
-  - matched 状态时显示"你已被分配志愿者"
+```
+app/
+├── index.tsx              ← Landing（未登录时显示）
+├── auth/
+│   ├── login.tsx          ← 选择身份 + 输入账号密码
+│   └── register.tsx       ← 注册（senior 或 volunteer）
+├── (senior)/              ← 登录为 senior 后的 Tab 导航
+│   ├── _layout.tsx        ← Senior Tab bar（Home / Request / My Outings）
+│   ├── home.tsx           ← Senior 首页
+│   ← request.tsx          ← 出行请求（原 senior/request.tsx）
+│   └── status.tsx         ← 我的状态（原 senior/status.tsx）
+├── (volunteer)/           ← 登录为 volunteer 后的 Tab 导航
+│   ├── _layout.tsx        ← Volunteer Tab bar（Dashboard / Profile）
+│   └── dashboard.tsx      ← Volunteer Dashboard（原 volunteer/dashboard.tsx）
+└── _layout.tsx            ← Root layout：根据登录状态决定显示哪套导航
+```
 
----
+### 数据库变更（Person B 负责）
 
-### Person B — 匹配触发页 + Coordinator Dashboard
+在 seniors 和 volunteers 表各加两列：
+```sql
+ALTER TABLE seniors ADD COLUMN email TEXT UNIQUE;
+ALTER TABLE seniors ADD COLUMN password_hash TEXT;
 
-**负责文件：**
-- `app/match/index.tsx`
-- `components/OutingCard.tsx`（可选，供 A 复用）
+ALTER TABLE volunteers ADD COLUMN email TEXT UNIQUE;
+ALTER TABLE volunteers ADD COLUMN password_hash TEXT;
+```
 
-#### 匹配触发页 (`app/match/index.tsx`)
-- 一个大按钮 "Run AI Matching"
-- 点击 → `POST /api/match`
-- 显示 loading 状态
-- 成功后展示匹配结果：
-  - 几组被匹配
-  - 每组几位 seniors + 志愿者名字
-  - 未匹配的 seniors 和原因
-- 同时展示 stats：调用 `GET /api/stats`
-  - 总 seniors 数、总 volunteers 数
-  - pending requests 数、matched 数
+> 注：Hackathon 阶段用简单 bcrypt hash，不用 Supabase Auth。
 
 ---
 
-## 联调检查点
+## 分工
 
-| 完成后 | 验证方式 |
-|--------|---------|
-| Volunteer Dashboard | 注册志愿者 → 跳转 Dashboard → 能看到分配的 outings → 点 Accept → Supabase outings 表 status 变 confirmed |
-| Senior 状态页 | 注册 Senior → 提交请求 → 跳转状态页 → 能看到 pending 状态 → 跑匹配后刷新变 matched |
-| 匹配触发页 | 点 Run Matching → Claude 返回分组 → 页面展示结果 |
+### Person A — 前端路由重构 + Auth 页面
+
+**文件职责：**
+- `app/_layout.tsx` — Root layout，读 auth state 决定跳转
+- `app/index.tsx` — 不变，保留 Landing page
+- `app/auth/login.tsx` — 登录页
+- `app/auth/register.tsx` — 注册页（含身份选择）
+- `app/(senior)/_layout.tsx` — Senior Tab 导航
+- `app/(senior)/home.tsx` — Senior 首页（简单欢迎页 + 快捷入口）
+- `app/(volunteer)/_layout.tsx` — Volunteer Tab 导航
+- `lib/auth.ts` — 存储登录状态（AsyncStorage）
+
+**不碰的文件：** `app/auth/` 里的 API 调用逻辑由 B 提供接口
+
+#### 具体任务
+
+**Task A1 — auth state 管理**
+创建 `lib/auth.ts`：
+```typescript
+// 存储 / 读取 / 清除登录态
+// 用 AsyncStorage 保存 { id, role: 'senior'|'volunteer', name }
+export async function saveAuth(user: AuthUser): Promise<void>
+export async function getAuth(): Promise<AuthUser | null>
+export async function clearAuth(): Promise<void>
+```
+
+**Task A2 — Root layout 路由守卫**
+`app/_layout.tsx` 改为 Stack 导航：
+- 启动时读 AsyncStorage
+- 未登录 → 停在 `index`（Landing）
+- 已登录为 senior → 跳转 `(senior)/home`
+- 已登录为 volunteer → 跳转 `(volunteer)/dashboard`
+
+**Task A3 — Landing page 改造**
+`app/index.tsx` 两个按钮改为跳转 `auth/login?role=senior` 和 `auth/login?role=volunteer`，在按钮下方加 "Register" 链接跳 `auth/register?role=senior/volunteer`
+
+**Task A4 — 登录页** `app/auth/login.tsx`
+- 显示角色（从 URL 参数读 role）
+- 输入 email + password
+- 调 `POST /api/auth/login`（B 提供）
+- 成功 → 保存 auth state → 跳转对应端
+
+**Task A5 — 注册页** `app/auth/register.tsx`
+- 显示角色（URL 参数）
+- Senior：name / phone / address / interests / mobility_notes / email / password
+- Volunteer：name / phone / address / vehicle / availability / email / password
+- 调 `POST /api/auth/register`（B 提供）
+- 成功 → 自动登录 → 跳转
+
+**Task A6 — Senior Tab 导航**
+`app/(senior)/_layout.tsx`：3 个 tab — Home / Request Outing / My Outings
+把原来的 `senior/request.tsx` 和 `senior/status.tsx` 移过来
+
+**Task A7 — Volunteer Tab 导航**
+`app/(volunteer)/_layout.tsx`：2 个 tab — Dashboard / Profile（简单页面）
+把原来的 `volunteer/dashboard.tsx` 移过来
 
 ---
 
-## API 接口速查
+### Person B — 后端 Auth 接口 + 数据库变更
+
+**文件职责：**
+- Supabase SQL 变更
+- `server/routes/auth.ts` — 登录 / 注册接口
+- `server/lib/auth.ts` — bcrypt hash 工具
+- `server/index.ts` — 挂载 auth 路由
+
+**不碰的文件：** 所有已完成的其他路由文件
+
+#### 具体任务
+
+**Task B1 — 数据库变更**
+在 Supabase SQL Editor 执行：
+```sql
+ALTER TABLE seniors
+  ADD COLUMN IF NOT EXISTS email TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+ALTER TABLE volunteers
+  ADD COLUMN IF NOT EXISTS email TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS password_hash TEXT;
+```
+
+**Task B2 — bcrypt 工具**
+`server/lib/auth.ts`：
+```typescript
+export async function hashPassword(password: string): Promise<string>
+export async function verifyPassword(password: string, hash: string): Promise<boolean>
+```
+安装：`npm install bcryptjs && npm install -D @types/bcryptjs`
+
+**Task B3 — 注册接口** `POST /api/auth/register`
+```
+Request: {
+  role: "senior" | "volunteer"
+  email: string
+  password: string
+  name: string
+  phone?: string
+  address: string
+  // senior only:
+  interests?: string[]
+  mobility_notes?: string
+  // volunteer only:
+  vehicle_type?: string
+  max_passengers?: number
+  availability?: string[]
+}
+
+Response: {
+  data: { id: string, role: string, name: string, email: string } | null
+  error: string | null
+}
+```
+逻辑：geocode address → hash password → insert into seniors/volunteers → return user
+
+**Task B4 — 登录接口** `POST /api/auth/login`
+```
+Request: { role: "senior" | "volunteer", email: string, password: string }
+
+Response: {
+  data: { id: string, role: string, name: string, email: string } | null
+  error: string | null
+}
+```
+逻辑：query by email in role table → verify bcrypt → return user (no password_hash)
+
+**Task B5 — 挂载路由**
+`server/index.ts` 加：
+```typescript
+import authRouter from "./routes/auth";
+app.use("/api/auth", authRouter);
+```
+
+---
+
+## 联调顺序
+
+1. B 先完成 B1（数据库变更）+ B3/B4（接口）
+2. A 用 curl 测试接口通了再接前端
+3. 测试：注册 Senior → 自动跳转 Senior Tab → 只看到 Senior 功能
+4. 测试：注册 Volunteer → 自动跳转 Volunteer Dashboard
+
+**B 接口 ready 后，A 可以用这个测试：**
+```bash
+# 注册
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"role":"senior","email":"test@test.com","password":"123456","name":"Test","address":"1000 Broadway, Nashville, TN"}'
+
+# 登录
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"role":"senior","email":"test@test.com","password":"123456"}'
+```
+
+---
+
+## API 接口速查（完整）
 
 | Method | Path | 用途 |
 |--------|------|------|
-| POST | `/api/seniors` | 注册 senior |
+| POST | `/api/auth/register` | 注册（senior 或 volunteer） |
+| POST | `/api/auth/login` | 登录 |
+| POST | `/api/seniors` | 老接口（暂时保留） |
 | GET | `/api/seniors` | 列出所有 seniors |
-| POST | `/api/volunteers` | 注册 volunteer |
+| POST | `/api/volunteers` | 老接口（暂时保留） |
 | GET | `/api/volunteers` | 列出所有 volunteers |
 | POST | `/api/requests` | 创建出行请求 |
-| GET | `/api/requests?senior_id=xxx` | 查某个 senior 的请求 |
-| GET | `/api/requests?status=pending` | 查所有 pending 请求 |
+| GET | `/api/requests?senior_id=xxx` | 查某 senior 的请求 |
 | POST | `/api/match` | 触发 AI 匹配 |
 | GET | `/api/outings?volunteer_id=xxx` | 查某志愿者的 outings |
 | PATCH | `/api/outings/:id` | 确认/取消 outing |
-| GET | `/api/stats` | Dashboard 统计数据 |
+| GET | `/api/stats` | Dashboard 统计 |
 
 ---
 
@@ -124,6 +252,5 @@ cd server && npm run dev
 npm start -- --clear
 ```
 
-**手机上用 Expo Go 扫码，确保手机和 Mac 在同一 WiFi 下。**
-`.env.local` 中 `EXPO_PUBLIC_SERVER_URL` 填 Mac 的局域网 IP + 端口，如：
-`EXPO_PUBLIC_SERVER_URL=http://192.168.1.5:3001`
+`.env.local` 中 `EXPO_PUBLIC_SERVER_URL` 填 Mac 的局域网 IP + 端口：
+`EXPO_PUBLIC_SERVER_URL=http://10.71.205.172:3001`
