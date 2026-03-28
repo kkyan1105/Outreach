@@ -2,7 +2,7 @@
   "name": "senior-outing-server",
   "version": "0.1.0",
   "scripts": {
-    "dev": "npx ts-node --watch index.ts",
+    "dev": "npx ts-node index.ts",
     "start": "npx ts-node index.ts"
   },
   "dependencies": {

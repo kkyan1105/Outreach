@@ -1,5 +1,6 @@
 {
   "expo": {
+    "newArchEnabled": false,
     "name": "Senior Outing",
     "slug": "senior-outing-app",
     "version": "1.0.0",
