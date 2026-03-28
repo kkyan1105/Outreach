@@ -1,8 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { MATCHING_SYSTEM_PROMPT } from "./matching-prompt";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 interface MatchInput {
@@ -24,6 +24,7 @@ interface MatchInput {
     max_passengers: number;
     availability: string[];
   }[];
+  cluster_hints?: any[];
 }
 
 interface MatchOutput {
@@ -39,11 +40,11 @@ interface MatchOutput {
 }
 
 export async function runMatching(input: MatchInput): Promise<MatchOutput> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2048,
-    system: MATCHING_SYSTEM_PROMPT,
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    temperature: 0,
     messages: [
+      { role: "system", content: MATCHING_SYSTEM_PROMPT },
       {
         role: "user",
         content: `Here are the pending outing requests and available volunteers. Please group them optimally.\n\n${JSON.stringify(input, null, 2)}`,
@@ -51,12 +52,11 @@ export async function runMatching(input: MatchInput): Promise<MatchOutput> {
     ],
   });
 
-  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  const text = response.choices[0]?.message?.content || "";
 
-  // Extract JSON from response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error("Claude did not return valid JSON");
+    throw new Error("OpenAI did not return valid JSON");
   }
 
   return JSON.parse(jsonMatch[0]) as MatchOutput;
