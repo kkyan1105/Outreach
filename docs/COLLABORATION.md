@@ -14,311 +14,116 @@
 
 ---
 
-## Person A — Expo 前端 + 地图
+## ✅ 已完成（Phase 1-2）
 
-**负责：** 所有屏幕页面、表单、UI 组件、地图可视化
+### Person A（前端）已完成
+- `lib/theme.ts` — 全局设计 token
+- `app/_layout.tsx` — Tab 导航
+- `app/index.tsx` — Landing page
+- `app/senior/register.tsx` — Senior 注册表单 → `POST /api/seniors`
+- `app/volunteer/register.tsx` — Volunteer 注册表单 → `POST /api/volunteers`
+- `app/senior/request.tsx` — 出行请求表单 → `POST /api/requests`
 
-### 文件范围
-- `app/` 下所有页面
-- `components/` 下所有组件
-- `lib/mock-data.ts`（开发用假数据）
+### Person B（后端）已完成
+- Supabase 建表（seniors, volunteers, outing_requests, outings）
+- Seed 数据（5 seniors, 2 volunteers）
+- `POST/GET /api/seniors`
+- `POST/GET /api/volunteers`
+- `POST/GET /api/requests`
+- `POST /api/match` — Claude AI 匹配 + DBSCAN 地理聚类
+- `GET/PATCH /api/outings` — 查看 outings + 志愿者确认/取消
+- `GET /api/stats` — Dashboard 统计
 
-### 任务清单
+---
 
-#### Phase 1 (0-8h)
-- [ ] `npm install` 安装 Expo 依赖
-- [ ] 基础 Tab 导航：`app/_layout.tsx`
-- [ ] Home screen：`app/index.tsx`（项目介绍 + 统计数据 + 入口按钮）
+## 🔄 当前阶段（Phase 3）
 
-#### Phase 2 (8-16h)
-- [ ] Senior 注册页：`app/senior/register.tsx`
-- [ ] Volunteer 注册页：`app/volunteer/register.tsx`
-- [ ] 出行请求页：`app/senior/request.tsx`
+### Person A — Volunteer Dashboard + Senior 状态页
 
-#### Phase 3 (16-26h)
-- [ ] Volunteer Dashboard：`app/volunteer/dashboard.tsx`
-  - 展示分配给自己的 outings
+**负责文件：**
+- `app/volunteer/dashboard.tsx`
+- `app/senior/status.tsx`
+
+#### Volunteer Dashboard (`app/volunteer/dashboard.tsx`)
+- 页面入口：Tab 底部 "Volunteer" → Dashboard
+- 输入：URL 参数 `?volunteer_id=xxx`（注册后自动跳转过来）
+- 调用：`GET /api/outings?volunteer_id=xxx`
+- 展示每个 outing 卡片：
+  - 几月几号、几点出发
+  - 目的地类型
+  - 几位乘客（seniors 名字列表）
   - Accept / Decline 按钮
-- [ ] Senior 状态页：`app/senior/status.tsx`
-  - 展示我的请求状态（pending / matched）
+- Accept → `PATCH /api/outings/:id` body: `{ "status": "confirmed" }`
+- Decline → `PATCH /api/outings/:id` body: `{ "status": "cancelled" }`
 
-#### Phase 4 (26-34h)
-- [ ] 地图组件：`components/MapView.tsx`
-  - react-native-maps 显示所有匹配的老人 + 志愿者位置
-  - 画出接送路线
-- [ ] Outing 详情页：`app/match/index.tsx`
-  - 地图 + 乘客列表 + 时间 + 目的地
-
-#### Phase 5 (34-40h)
-- [ ] Home screen 美化
-- [ ] 加载状态、空状态、错误提示
-
-### 开发阶段无后端时怎么办？
-
-在后端没 ready 之前，用 mock 数据开发：
-
-```typescript
-import { mockSeniors, mockOutings } from "@/lib/mock-data";
-```
-
-等后端 ready 后替换成：
-
-```typescript
-import { api } from "@/lib/api";
-const { data } = await api<ApiResponse<Senior[]>>("/api/seniors");
-```
+#### Senior 状态页 (`app/senior/status.tsx`)
+- 输入：URL 参数 `?senior_id=xxx`（注册后自动跳转过来）
+- 调用：`GET /api/requests?senior_id=xxx`
+- 展示每条请求的状态卡片：
+  - 目的地、日期、时间
+  - 状态 badge：pending（等待匹配）/ matched（已匹配）
+  - matched 状态时显示"你已被分配志愿者"
 
 ---
 
-## Person B — Express 后端 + 数据库 + AI 匹配
+### Person B — 匹配触发页 + Coordinator Dashboard
 
-**负责：** Express server、Supabase 建表、所有 API 接口、Claude 匹配逻辑
+**负责文件：**
+- `app/match/index.tsx`
+- `components/OutingCard.tsx`（可选，供 A 复用）
 
-### 文件范围
-- `server/` 下所有文件
-- `lib/types.ts`（共享类型）
-- `lib/supabase.ts`（客户端 Supabase）
-- `scripts/seed.ts`
-
-### 任务清单
-
-#### Phase 1 (0-8h)
-- [ ] Supabase 创建 project + 建表（见下方 SQL）
-- [ ] `server/lib/supabase.ts` — Server-side Supabase client
-- [ ] `lib/types.ts` — 共享 TypeScript 类型（已完成）
-- [ ] `.env.local` 配置
-- [ ] `server/index.ts` — Express 启动
-
-#### Phase 2 (8-16h)
-- [ ] `server/routes/seniors.ts` — POST 注册 + GET 列表
-- [ ] `server/routes/volunteers.ts` — POST 注册 + GET 列表
-- [ ] `server/routes/requests.ts` — POST 创建请求 + GET 列表
-- [ ] `server/lib/geocode.ts` — 地址转经纬度
-
-#### Phase 3 (16-26h) ⭐ 核心
-- [ ] `server/routes/match.ts` — AI 匹配接口
-  - 获取所有 pending requests
-  - 获取所有 available volunteers
-  - 调 Claude API 做分组
-  - 将匹配结果写入 outings 表
-  - 更新 request status → matched
-- [ ] `server/routes/outings.ts` — GET 列表 + PATCH 确认/拒绝
-- [ ] `server/lib/claude.ts` — Claude API 调用
-- [ ] `server/lib/matching-prompt.ts` — Prompt 模板
-
-#### Phase 4 (26-34h)
-- [ ] 匹配逻辑优化（处理边界情况）
-- [ ] `scripts/seed.ts` 批量插入 demo 数据
-
-#### Phase 5 (34-40h)
-- [ ] API 错误处理完善
-- [ ] 部署 server 到 Railway/Render
-- [ ] 确认环境变量配置正确
-
-### Supabase 建表 SQL
-
-登录 Supabase → SQL Editor → 执行：
-
-```sql
--- 老人表
-CREATE TABLE seniors (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  phone TEXT,
-  address TEXT NOT NULL,
-  lat DOUBLE PRECISION NOT NULL,
-  lng DOUBLE PRECISION NOT NULL,
-  interests TEXT[] DEFAULT '{}',
-  mobility_notes TEXT DEFAULT '',
-  emergency_contact TEXT DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 志愿者表
-CREATE TABLE volunteers (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  phone TEXT,
-  address TEXT NOT NULL,
-  lat DOUBLE PRECISION NOT NULL,
-  lng DOUBLE PRECISION NOT NULL,
-  vehicle_type TEXT DEFAULT 'sedan',
-  max_passengers INTEGER DEFAULT 4,
-  availability TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 出行请求表
-CREATE TABLE outing_requests (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  senior_id UUID REFERENCES seniors(id) ON DELETE CASCADE,
-  destination_type TEXT NOT NULL,
-  destination_name TEXT DEFAULT '',
-  preferred_date DATE NOT NULL,
-  preferred_time_start TIME NOT NULL,
-  preferred_time_end TIME NOT NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'matched', 'completed', 'cancelled')),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- 匹配结果表
-CREATE TABLE outings (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  volunteer_id UUID REFERENCES volunteers(id),
-  request_ids UUID[] NOT NULL,
-  scheduled_date DATE NOT NULL,
-  scheduled_time TIME NOT NULL,
-  destination_type TEXT NOT NULL,
-  route_info JSONB DEFAULT '{}',
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-```
+#### 匹配触发页 (`app/match/index.tsx`)
+- 一个大按钮 "Run AI Matching"
+- 点击 → `POST /api/match`
+- 显示 loading 状态
+- 成功后展示匹配结果：
+  - 几组被匹配
+  - 每组几位 seniors + 志愿者名字
+  - 未匹配的 seniors 和原因
+- 同时展示 stats：调用 `GET /api/stats`
+  - 总 seniors 数、总 volunteers 数
+  - pending requests 数、matched 数
 
 ---
 
-## 共享约定 — 接口契约
+## 联调检查点
 
-### 共享类型文件 `lib/types.ts`（已完成）
-
-### API 调用方式
-
-前端通过 `lib/api.ts` 调用后端：
-
-```typescript
-import { api } from "@/lib/api";
-import { ApiResponse, Senior } from "@/lib/types";
-
-// 注册老人
-const result = await api<ApiResponse<Senior>>("/api/seniors", {
-  method: "POST",
-  body: JSON.stringify({ name: "Alice", address: "..." }),
-});
-
-// 获取列表
-const list = await api<ApiResponse<Senior[]>>("/api/seniors");
-```
+| 完成后 | 验证方式 |
+|--------|---------|
+| Volunteer Dashboard | 注册志愿者 → 跳转 Dashboard → 能看到分配的 outings → 点 Accept → Supabase outings 表 status 变 confirmed |
+| Senior 状态页 | 注册 Senior → 提交请求 → 跳转状态页 → 能看到 pending 状态 → 跑匹配后刷新变 matched |
+| 匹配触发页 | 点 Run Matching → Claude 返回分组 → 页面展示结果 |
 
 ---
 
-## API 接口详细约定
+## API 接口速查
 
-### `POST /api/seniors`
-```
-Request:  CreateSeniorRequest (JSON body)
-Response: ApiResponse<Senior>
-```
-
-### `GET /api/seniors`
-```
-Response: ApiResponse<Senior[]>
-```
-
-### `POST /api/volunteers`
-```
-Request:  CreateVolunteerRequest (JSON body)
-Response: ApiResponse<Volunteer>
-```
-
-### `GET /api/volunteers`
-```
-Response: ApiResponse<Volunteer[]>
-```
-
-### `POST /api/requests`
-```
-Request:  CreateOutingRequest (JSON body)
-Response: ApiResponse<OutingRequest>
-```
-
-### `GET /api/requests?status=pending`
-```
-Response: ApiResponse<OutingRequest[]>
-Query params: status (optional), senior_id (optional)
-```
-
-### `POST /api/match`
-```
-Request:  {} (no body needed)
-Response: ApiResponse<MatchResult>
-```
-
-### `GET /api/outings?volunteer_id=xxx`
-```
-Response: ApiResponse<(Outing & { seniors: Senior[], volunteer: Volunteer })[]>
-```
-
-### `PATCH /api/outings/:id`
-```
-Request:  { "status": "confirmed" | "cancelled" }
-Response: ApiResponse<Outing>
-```
+| Method | Path | 用途 |
+|--------|------|------|
+| POST | `/api/seniors` | 注册 senior |
+| GET | `/api/seniors` | 列出所有 seniors |
+| POST | `/api/volunteers` | 注册 volunteer |
+| GET | `/api/volunteers` | 列出所有 volunteers |
+| POST | `/api/requests` | 创建出行请求 |
+| GET | `/api/requests?senior_id=xxx` | 查某个 senior 的请求 |
+| GET | `/api/requests?status=pending` | 查所有 pending 请求 |
+| POST | `/api/match` | 触发 AI 匹配 |
+| GET | `/api/outings?volunteer_id=xxx` | 查某志愿者的 outings |
+| PATCH | `/api/outings/:id` | 确认/取消 outing |
+| GET | `/api/stats` | Dashboard 统计数据 |
 
 ---
 
-## Git 协作方式
-
-直接在 main 上开发，每次写完一个功能就 commit + push，另一个人 pull。
+## 启动方式
 
 ```bash
-git add .
-git commit -m "feat: senior registration API"
-git push origin main
+# 终端 1 — 后端
+cd server && npm run dev
+
+# 终端 2 — 前端
+npm start -- --clear
 ```
 
-**文件不会冲突，因为：**
-- Person A 只动 `app/` 和 `components/`
-- Person B 只动 `server/` 和 `scripts/`
-- 唯一共享的是 `lib/types.ts`，Phase 1 定好后基本不变
-
----
-
-## 时间线 + 联调计划
-
-### Sprint 1 (0-4h) — 项目骨架
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| `npm install` + Expo 跑起来 | Supabase 建表 |
-| Tab 导航 + Home screen | Express server 启动 |
-| Senior 注册表单 UI | `POST /api/seniors` 接口 |
-
-**联调：** 前端表单提交 → 调 Express API → Supabase 能查到
-
-### Sprint 2 (4-8h) — Volunteer 注册
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| Volunteer 注册表单 | `POST /api/volunteers` |
-| Home screen 内容 | GET 接口 |
-
-### Sprint 3 (8-12h) — 出行请求
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| 出行请求表单 | `POST /api/requests` + geocode |
-
-### Sprint 4 (12-16h) — 状态查看
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| Senior 状态页 | 完善 GET filters |
-
-### Sprint 5 (16-20h) — AI 匹配 ⭐
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| 匹配触发 + 结果展示 | ⭐ `POST /api/match` AI 核心 |
-
-### Sprint 6 (20-24h) — Volunteer Dashboard
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| Dashboard 页面 | `GET/PATCH /api/outings` |
-
-### Sprint 7 (24-28h) — 地图
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| react-native-maps | 匹配优化 |
-
-### Sprint 8 (28-32h) — 全流程
-| Person A (前端) | Person B (后端) |
-|----------------|----------------|
-| 详情页 | Seed 脚本 |
-
-### Sprint 9 (32-36h) — 美化 + 修 bug
-### Sprint 10 (36-40h) — 部署 + Demo
+**手机上用 Expo Go 扫码，确保手机和 Mac 在同一 WiFi 下。**
+`.env.local` 中 `EXPO_PUBLIC_SERVER_URL` 填 Mac 的局域网 IP + 端口，如：
+`EXPO_PUBLIC_SERVER_URL=http://192.168.1.5:3001`
