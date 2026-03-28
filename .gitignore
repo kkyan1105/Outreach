@@ -1,7 +1,7 @@
 node_modules/
-.next/
+.expo/
+dist/
 .env.local
 .env*.local
-out/
 *.tsbuildinfo
-next-env.d.ts
+server/node_modules/

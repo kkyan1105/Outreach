@@ -4,12 +4,37 @@
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Frontend | **Next.js 14 (App Router)** | React + SSR + API Routes all in one，不用分开部署 |
-| Styling | **Tailwind CSS** | 快速出 UI，hackathon 首选 |
+| Frontend | **Expo (React Native) + Expo Router** | 原生移动 App，Expo Go 直接跑 |
+| Styling | **React Native StyleSheet** | 原生组件，不需要 CSS 框架 |
+| Backend | **Express.js (独立 server/)** | API 服务器，处理 AI 匹配等需要密钥的逻辑 |
 | Database | **Supabase (PostgreSQL)** | 免费、自带 Auth、实时订阅、REST API |
 | AI Matching | **Claude API** | 用 structured output 做分组匹配 |
-| Maps | **Google Maps API** | 地理编码 + 路线规划 + 地图展示 |
-| Deployment | **Vercel** | Next.js 原生支持，一键部署 |
+| Maps | **react-native-maps + Google Maps API** | 原生地图组件 + 地理编码 |
+| Deployment | **Expo Go (开发) / EAS Build (发布)** | 扫码即可在手机上运行 |
+| Server Deployment | **Railway / Render** | Express 服务器一键部署 |
+
+---
+
+## 架构概览
+
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│   Expo App (客户端)  │  HTTP   │   Express Server    │
+│   React Native      │ ◄─────► │   (server/)         │
+│   Expo Router       │         │                     │
+└─────────┬───────────┘         └──────────┬──────────┘
+          │                                │
+          │ Supabase Client                │ Supabase Service Role
+          │ (读取数据)                      │ (写入 + AI 匹配)
+          ▼                                ▼
+     ┌─────────────────────────────────────────┐
+     │           Supabase (PostgreSQL)          │
+     └─────────────────────────────────────────┘
+```
+
+- **Expo App** 直接用 Supabase client 读取数据（seniors, outings 列表等）
+- **Express Server** 处理需要密钥的操作（Claude API 匹配、地理编码）
+- 两者共享同一个 Supabase 数据库
 
 ---
 
@@ -55,42 +80,49 @@
 
 ```
 /
-├── src/
-│   ├── app/                     # Next.js App Router
-│   │   ├── layout.tsx           # Root layout (nav, footer)
-│   │   ├── page.tsx             # Landing page
-│   │   ├── senior/
-│   │   │   ├── register/page.tsx    # Senior registration form
-│   │   │   ├── request/page.tsx     # Request an outing
-│   │   │   └── status/page.tsx      # View my matched outings
-│   │   ├── volunteer/
-│   │   │   ├── register/page.tsx    # Volunteer registration
-│   │   │   └── dashboard/page.tsx   # View & accept outing requests
-│   │   ├── match/
-│   │   │   └── page.tsx             # Map view of matched group + route
-│   │   └── api/
-│   │       ├── seniors/route.ts         # CRUD seniors
-│   │       ├── volunteers/route.ts      # CRUD volunteers
-│   │       ├── requests/route.ts        # Create/list outing requests
-│   │       ├── match/route.ts           # Trigger AI matching
-│   │       └── outings/route.ts         # Matched outings CRUD
-│   ├── components/
-│   │   ├── MapView.tsx          # Google Maps component
-│   │   ├── SeniorForm.tsx       # Registration form
-│   │   ├── VolunteerForm.tsx    # Registration form
-│   │   ├── OutingCard.tsx       # Outing info card
-│   │   └── Navbar.tsx
-│   ├── lib/
-│   │   ├── supabase.ts          # Supabase client
-│   │   ├── claude.ts            # Claude API matching logic
-│   │   ├── geocode.ts           # Address → lat/lng
-│   │   └── types.ts             # TypeScript types
-│   └── prompts/
-│       └── matching.ts          # Claude matching prompt template
-├── public/
-├── .env.local                   # API keys (not committed)
-├── package.json
-├── tailwind.config.ts
+├── app/                         # Expo Router (file-based routing)
+│   ├── _layout.tsx              # Root layout (Tab navigation)
+│   ├── index.tsx                # Home / Landing screen
+│   ├── senior/
+│   │   ├── _layout.tsx          # Senior stack navigator
+│   │   ├── register.tsx         # Senior registration form
+│   │   ├── request.tsx          # Request an outing
+│   │   └── status.tsx           # View my matched outings
+│   ├── volunteer/
+│   │   ├── _layout.tsx          # Volunteer stack navigator
+│   │   ├── register.tsx         # Volunteer registration
+│   │   └── dashboard.tsx        # View & accept outing requests
+│   └── match/
+│       └── index.tsx            # Map view of matched group + route
+├── components/
+│   ├── MapView.tsx              # react-native-maps component
+│   ├── OutingCard.tsx           # Outing info card
+│   └── ...
+├── lib/
+│   ├── types.ts                 # Shared TypeScript types
+│   ├── supabase.ts              # Supabase client (client-side)
+│   ├── api.ts                   # Helper to call Express server
+│   └── mock-data.ts             # Mock data for frontend dev
+├── server/                      # Express backend (独立运行)
+│   ├── package.json             # Server dependencies
+│   ├── index.ts                 # Express entry point
+│   ├── routes/
+│   │   ├── seniors.ts           # CRUD seniors
+│   │   ├── volunteers.ts        # CRUD volunteers
+│   │   ├── requests.ts          # Create/list outing requests
+│   │   ├── match.ts             # Trigger AI matching
+│   │   └── outings.ts           # Matched outings CRUD
+│   └── lib/
+│       ├── supabase.ts          # Supabase client (server-side, SERVICE_ROLE)
+│       ├── claude.ts            # Claude API matching logic
+│       ├── geocode.ts           # Address → lat/lng
+│       └── matching-prompt.ts   # Claude prompt template
+├── scripts/
+│   └── seed.ts                  # Seed demo data
+├── assets/                      # App icons, images
+├── docs/                        # Documentation
+├── app.json                     # Expo config
+├── package.json                 # Expo dependencies
 └── tsconfig.json
 ```
 
@@ -133,17 +165,17 @@ Claude 输出 (structured/tool_use):
 ## Implementation Phases (40 hours)
 
 ### Phase 1: Foundation (Hours 0-8)
-- [ ] `npx create-next-app` + Tailwind + Supabase setup
+- [ ] Expo project setup + install dependencies
 - [ ] Create Supabase tables (seniors, volunteers, outing_requests, outings)
 - [ ] `.env.local` with all API keys
-- [ ] Basic layout + Navbar + Landing page
-- [ ] Supabase client helper (`lib/supabase.ts`)
+- [ ] Tab navigation + Home screen
+- [ ] Supabase client + Express server skeleton
 
 ### Phase 2: Registration (Hours 8-16)
 - [ ] Senior registration form (name, address, interests, mobility)
 - [ ] Volunteer registration form (name, address, vehicle, availability)
 - [ ] Address → geocode (Google Maps Geocoding API)
-- [ ] Save to Supabase
+- [ ] Save to Supabase via Express API
 - [ ] Outing request form (destination type, date, time window)
 
 ### Phase 3: AI Matching (Hours 16-26) ⭐ Core Feature
@@ -154,22 +186,21 @@ Claude 输出 (structured/tool_use):
 - [ ] Volunteer dashboard: see assigned outings, accept/decline
 
 ### Phase 4: Map & Visualization (Hours 26-34)
-- [ ] Map view: show all seniors in a group + volunteer on map
+- [ ] react-native-maps: show all seniors in a group + volunteer on map
 - [ ] Draw optimized pickup route
-- [ ] Outing detail page (who's going, pickup order, ETA)
-- [ ] Senior status page (view my upcoming outings)
+- [ ] Outing detail screen (who's going, pickup order, ETA)
+- [ ] Senior status screen (view my upcoming outings)
 
 ### Phase 5: Polish & Demo (Hours 34-40)
-- [ ] Landing page with stats & value proposition
+- [ ] Home screen with stats & value proposition
 - [ ] Seed demo data (5-10 seniors, 2-3 volunteers)
 - [ ] Run matching → show results on map
-- [ ] Mobile responsive
-- [ ] Deploy to Vercel
+- [ ] Deploy server to Railway/Render
 - [ ] Prepare demo script
 
 ---
 
-## API Endpoints Summary
+## API Endpoints Summary (Express Server)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -185,19 +216,39 @@ Claude 输出 (structured/tool_use):
 
 ---
 
-## Environment Variables Needed
+## Environment Variables
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+# === Expo App (.env.local) ===
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_SERVER_URL=http://localhost:3001
+
+# === Server (server/.env) ===
+SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
-
-# Claude API
 ANTHROPIC_API_KEY=
+GOOGLE_MAPS_API_KEY=
+PORT=3001
+```
 
-# Google Maps
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
+---
+
+## How to Run
+
+```bash
+# 1. Install Expo app dependencies
+npm install
+
+# 2. Install server dependencies
+cd server && npm install && cd ..
+
+# 3. Start Expo dev server (Person A 用)
+npm start
+# → 扫 QR code 用 Expo Go 打开
+
+# 4. Start Express server (Person B 用)
+cd server && npm run dev
 ```
 
 ---
@@ -208,6 +259,6 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
 2. **Register 2 seniors** — different addresses, both want "grocery" on same day
 3. **Register 1 volunteer** — nearby, available that day
 4. **Run matching** — Claude groups the 2 seniors + assigns volunteer
-5. **Show map** — pickup route visualization
+5. **Show map** — pickup route visualization on phone
 6. **Volunteer confirms** — one tap to accept the outing
 7. **Impact pitch** — "1 volunteer, 1 trip, 2 seniors no longer alone"

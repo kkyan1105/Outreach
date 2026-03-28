@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Senior Outing",
+    "slug": "senior-outing-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "senior-outing",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": ""
+      }
+    },
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
+    },
+    "plugins": ["expo-router", "expo-location"]
+  }
+}
