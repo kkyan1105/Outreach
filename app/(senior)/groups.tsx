@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert, Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -58,6 +58,7 @@ export default function GroupsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
+  const [joinTarget, setJoinTarget] = useState<OpenOuting | null>(null);
 
   useEffect(() => {
     getAuth().then((user) => setSeniorId(user?.id || null));
@@ -87,45 +88,33 @@ export default function GroupsScreen() {
 
   useEffect(() => { fetchOutings(); }, [fetchOutings]);
 
-  async function handleJoin(outing: OpenOuting) {
-    if (!seniorId) return;
-    const destLabel = outing.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    Alert.alert(
-      "Join this outing?",
-      `${destLabel} · ${formatDate(outing.scheduled_date)} at ${formatTime(outing.scheduled_time)}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Join",
-          onPress: async () => {
-            setJoiningId(outing.id);
-            try {
-              const res = await api<ApiResponse<any>>(`/api/outings/${outing.id}/join`, {
-                method: "POST",
-                body: JSON.stringify({ senior_id: seniorId }),
-              });
-              if (res.error) {
-                Alert.alert("Could not join", res.error);
-              } else {
-                fetchOutings();
-                Alert.alert(
-                  "You're in!",
-                  "You've joined the group. Check My Outings for updates.",
-                  [
-                    { text: "View My Outings", onPress: () => router.replace("/(senior)/status") },
-                    { text: "OK" },
-                  ]
-                );
-              }
-            } catch {
-              Alert.alert("Error", "Could not join. Please try again.");
-            } finally {
-              setJoiningId(null);
-            }
-          },
-        },
-      ]
-    );
+  async function confirmJoin() {
+    if (!joinTarget || !seniorId) return;
+    setJoiningId(joinTarget.id);
+    setJoinTarget(null);
+    try {
+      const res = await api<ApiResponse<any>>(`/api/outings/${joinTarget.id}/join`, {
+        method: "POST",
+        body: JSON.stringify({ senior_id: seniorId }),
+      });
+      if (res.error) {
+        Alert.alert("Could not join", res.error);
+      } else {
+        fetchOutings();
+        Alert.alert(
+          "You're in!",
+          "You've joined the group. Check My Outings for updates.",
+          [
+            { text: "View My Outings", onPress: () => router.replace("/(senior)/status") },
+            { text: "OK" },
+          ]
+        );
+      }
+    } catch {
+      Alert.alert("Error", "Could not join. Please try again.");
+    } finally {
+      setJoiningId(null);
+    }
   }
 
   if (!seniorId || loading) {
@@ -138,93 +127,115 @@ export default function GroupsScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); fetchOutings(); }}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <Text style={styles.heading}>
-        Groups{"\n"}<Text style={styles.headingAccent}>Near You</Text>
-      </Text>
-      <Text style={styles.subheading}>Pull down to refresh. Join a group that's already forming!</Text>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchOutings(); }}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        <Text style={styles.heading}>
+          Groups{"\n"}<Text style={styles.headingAccent}>Near You</Text>
+        </Text>
+        <Text style={styles.subheading}>Pull down to refresh. Join a group that's already forming!</Text>
 
-      {outings.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyEmoji}>🔍</Text>
-          <Text style={styles.emptyTitle}>No open groups right now</Text>
-          <Text style={styles.emptyText}>
-            Be the first — request an outing and others nearby can join you.
-          </Text>
-        </View>
-      ) : (
-        outings.map((outing) => {
-          const emoji = DESTINATION_EMOJI[outing.destination_type] || "📍";
-          const destLabel = outing.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          const peopleCount = (outing.seniors || []).length;
-          const spots = MAX_PASSENGERS - (outing.request_ids || []).length;
-          const isJoining = joiningId === outing.id;
+        {outings.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyEmoji}>🔍</Text>
+            <Text style={styles.emptyTitle}>No open groups right now</Text>
+            <Text style={styles.emptyText}>
+              Be the first — request an outing and others nearby can join you.
+            </Text>
+          </View>
+        ) : (
+          outings.map((outing) => {
+            const emoji = DESTINATION_EMOJI[outing.destination_type] || "📍";
+            const destLabel = outing.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            const peopleCount = (outing.seniors || []).length;
+            const spots = MAX_PASSENGERS - (outing.request_ids || []).length;
+            const isJoining = joiningId === outing.id;
 
-          return (
-            <View key={outing.id} style={styles.card}>
-              {/* Top row */}
-              <View style={styles.cardTop}>
-                <View style={styles.emojiBox}>
-                  <Text style={styles.emoji}>{emoji}</Text>
+            return (
+              <View key={outing.id} style={styles.card}>
+                <View style={styles.cardTop}>
+                  <View style={styles.emojiBox}>
+                    <Text style={styles.emoji}>{emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.destLabel}>{destLabel}</Text>
+                    <Text style={styles.spotsText}>
+                      {peopleCount} {peopleCount === 1 ? "person" : "people"} going · {spots} spot{spots !== 1 ? "s" : ""} left
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.destLabel}>{destLabel}</Text>
-                  <Text style={styles.spotsText}>
-                    {peopleCount} {peopleCount === 1 ? "person" : "people"} going · {spots} spot{spots !== 1 ? "s" : ""} left
+
+                <View style={styles.infoRow}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoIcon}>📅</Text>
+                    <Text style={styles.infoText}>{formatDate(outing.scheduled_date)}</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoIcon}>🕐</Text>
+                    <Text style={styles.infoText}>{formatTime(outing.scheduled_time)}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.statusBadge, outing.status === "confirmed" ? styles.statusConfirmed : styles.statusPending]}>
+                  <View style={[styles.statusDot, { backgroundColor: outing.status === "confirmed" ? colors.primary : colors.tileGold }]} />
+                  <Text style={[styles.statusText, { color: outing.status === "confirmed" ? colors.primary : colors.tileGold }]}>
+                    {outing.status === "confirmed" ? "Driver assigned" : "Forming — no driver yet"}
                   </Text>
                 </View>
-              </View>
 
-              {/* Date & time */}
-              <View style={styles.infoRow}>
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoIcon}>📅</Text>
-                  <Text style={styles.infoText}>{formatDate(outing.scheduled_date)}</Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoIcon}>🕐</Text>
-                  <Text style={styles.infoText}>{formatTime(outing.scheduled_time)}</Text>
-                </View>
+                <TouchableOpacity
+                  style={[styles.joinBtn, isJoining && styles.joinBtnDisabled]}
+                  onPress={() => setJoinTarget(outing)}
+                  disabled={isJoining}
+                >
+                  {isJoining ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="add-circle-outline" size={22} color="#fff" />
+                      <Text style={styles.joinBtnText}>Join this group</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
+            );
+          })
+        )}
+      </ScrollView>
 
-              {/* Status badge */}
-              <View style={[styles.statusBadge, outing.status === "confirmed" ? styles.statusConfirmed : styles.statusPending]}>
-                <View style={[styles.statusDot, { backgroundColor: outing.status === "confirmed" ? colors.primary : colors.tileGold }]} />
-                <Text style={[styles.statusText, { color: outing.status === "confirmed" ? colors.primary : colors.tileGold }]}>
-                  {outing.status === "confirmed" ? "Driver assigned" : "Forming — no driver yet"}
+      <Modal visible={!!joinTarget} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Join this outing?</Text>
+            {joinTarget && (
+              <View style={{ marginBottom: spacing.lg }}>
+                <Text style={styles.modalSubtitle}>
+                  {joinTarget.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {formatDate(joinTarget.scheduled_date)} at {formatTime(joinTarget.scheduled_time)}
                 </Text>
               </View>
-
-              {/* Join button */}
-              <TouchableOpacity
-                style={[styles.joinBtn, isJoining && styles.joinBtnDisabled]}
-                onPress={() => handleJoin(outing)}
-                disabled={isJoining}
-              >
-                {isJoining ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="add-circle-outline" size={22} color="#fff" />
-                    <Text style={styles.joinBtnText}>Join this group</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+            )}
+            <TouchableOpacity style={styles.modalJoinBtn} onPress={confirmJoin}>
+              <Text style={styles.modalJoinBtnText}>Yes, Join</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setJoinTarget(null)}>
+              <Text style={styles.modalCancelBtnText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -239,7 +250,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xxl, fontWeight: "800",
     color: colors.textPrimary, lineHeight: 40, marginBottom: spacing.xs,
   },
-  headingAccent: { color: colors.tileGreen },
+  headingAccent: { color: colors.tileCoral },
   subheading: {
     fontSize: fontSize.lg, color: colors.textSecondary,
     lineHeight: 28, marginBottom: spacing.lg,
@@ -277,10 +288,60 @@ const styles = StyleSheet.create({
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { fontSize: fontSize.md, fontWeight: "600" },
   joinBtn: {
-    backgroundColor: colors.tileGreen, borderRadius: radius.pill,
+    backgroundColor: colors.primary, borderRadius: radius.pill,
     paddingVertical: 16, alignItems: "center",
     flexDirection: "row", justifyContent: "center", gap: spacing.xs,
   },
   joinBtnDisabled: { opacity: 0.6 },
   joinBtnText: { fontSize: fontSize.lg, fontWeight: "700", color: "#fff" },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  modalBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  modalSubtitle: {
+    fontSize: 28,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    lineHeight: 30
+  },
+  modalJoinBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  modalJoinBtnText: {
+    fontSize: fontSize.md,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  modalCancelBtn: {
+    borderRadius: radius.pill,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  modalCancelBtnText: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.textSecondary,
+  },
 });
