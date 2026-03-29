@@ -14,9 +14,7 @@ const INTERESTS = [
   { key: "grocery", label: "Grocery" },
   { key: "church", label: "Church" },
   { key: "park", label: "Park" },
-  { key: "museum", label: "Museum" },
-  { key: "library", label: "Library" },
-  { key: "restaurant", label: "Restaurant" },
+  { key: "pharmacy", label: "Pharmacy" },
 ];
 
 const VEHICLE_TYPES = [
@@ -36,7 +34,8 @@ export default function RegisterScreen() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [password, setPassword] = useState("");
-  const [mobilityNotes, setMobilityNotes] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [vehicleType, setVehicleType] = useState("sedan");
   const [maxPassengers, setMaxPassengers] = useState("4");
@@ -61,7 +60,8 @@ export default function RegisterScreen() {
       };
       if (isSenior) {
         body.interests = interests;
-        body.mobility_notes = mobilityNotes.trim();
+        body.emergency_contact_name = emergencyContactName.trim();
+        body.emergency_contact_phone = emergencyContactPhone.trim();
       } else {
         body.vehicle_type = vehicleType;
         body.max_passengers = parseInt(maxPassengers) || 4;
@@ -113,7 +113,10 @@ export default function RegisterScreen() {
         <Field label="Home Address *" value={address} onChangeText={setAddress} placeholder="123 Main St, Nashville, TN" />
         <Field label="Password *" value={password} onChangeText={setPassword} placeholder="••••••••" secure />
         {isSenior && (
-          <Field label="Mobility Notes" value={mobilityNotes} onChangeText={setMobilityNotes} placeholder="e.g. Uses a walker…" multiline />
+          <>
+            <Field label="Emergency Contact Name" value={emergencyContactName} onChangeText={setEmergencyContactName} placeholder="e.g. John Smith" />
+            <Field label="Emergency Contact Phone" value={emergencyContactPhone} onChangeText={setEmergencyContactPhone} placeholder="615-555-0102" keyboardType="phone-pad" />
+          </>
         )}
         {!isSenior && (
           <Field label="Max Passengers" value={maxPassengers} onChangeText={setMaxPassengers} placeholder="4" keyboardType="phone-pad" />

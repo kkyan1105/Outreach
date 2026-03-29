@@ -9,7 +9,7 @@ const router = Router();
 router.post("/register", async (req, res) => {
   const {
     role, phone, password, name, address,
-    interests, mobility_notes, emergency_contact,
+    interests, emergency_contact_name, emergency_contact_phone,
     vehicle_type, max_passengers, availability,
   } = req.body;
 
@@ -59,8 +59,8 @@ router.post("/register", async (req, res) => {
 
   if (role === "senior") {
     insertData.interests = interests || [];
-    insertData.mobility_notes = mobility_notes || "";
-    insertData.emergency_contact = emergency_contact || "";
+    insertData.emergency_contact_name = emergency_contact_name || "";
+    insertData.emergency_contact_phone = emergency_contact_phone || "";
   } else {
     insertData.vehicle_type = vehicle_type || "sedan";
     insertData.max_passengers = max_passengers || 4;

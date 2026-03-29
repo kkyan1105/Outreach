@@ -107,4 +107,61 @@ router.post("/", async (req, res) => {
   res.json({ data, error: null });
 });
 
+// PATCH /api/requests/:id — cancel a request
+router.patch("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (status !== "cancelled") {
+    return res.status(400).json({ data: null, error: "Only cancellation is supported" });
+  }
+
+  // Get the request
+  const { data: request, error: reqErr } = await supabase
+    .from("outing_requests")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (reqErr || !request) {
+    return res.status(404).json({ data: null, error: "Request not found" });
+  }
+
+  if (request.status === "cancelled") {
+    return res.json({ data: request, error: null });
+  }
+
+  // If matched, find and cancel the associated outing too
+  if (request.status === "matched") {
+    const { data: outings } = await supabase
+      .from("outings")
+      .select("*")
+      .contains("request_ids", [id])
+      .in("status", ["pending", "confirmed"]);
+
+    for (const outing of (outings || [])) {
+      const remainingIds = (outing.request_ids || []).filter((rid: string) => rid !== id);
+
+      if (remainingIds.length === 0) {
+        // No other passengers — cancel the whole outing
+        await supabase.from("outings").update({ status: "cancelled" }).eq("id", outing.id);
+      } else {
+        // Remove this request from the outing
+        await supabase.from("outings").update({ request_ids: remainingIds }).eq("id", outing.id);
+      }
+    }
+  }
+
+  // Cancel the request
+  const { data, error } = await supabase
+    .from("outing_requests")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ data: null, error: error.message });
+  res.json({ data, error: null });
+});
+
 export default router;

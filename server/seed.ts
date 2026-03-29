@@ -13,20 +13,17 @@ const supabase = createClient(
 // All locations are around Vanderbilt University, Nashville, TN
 const seniors = [
   // Cluster 1: West End / Vanderbilt area — all want grocery on same day
-  { name: "Alice Johnson", phone: "6151000001", address: "2301 Vanderbilt Pl, Nashville, TN", lat: 36.1447, lng: -86.8027, interests: ["grocery", "church"], mobility_notes: "Uses a walker", emergency_contact: "Son: 6155559001" },
-  { name: "Bob Williams", phone: "6151000002", address: "1911 Broadway, Nashville, TN", lat: 36.1520, lng: -86.7960, interests: ["grocery", "library"], mobility_notes: "", emergency_contact: "" },
-  { name: "Dorothy Smith", phone: "6151000003", address: "2100 West End Ave, Nashville, TN", lat: 36.1490, lng: -86.8010, interests: ["grocery", "restaurant"], mobility_notes: "", emergency_contact: "Daughter: 6155559002" },
+  { name: "Alice Johnson", phone: "6151000001", address: "2301 Vanderbilt Pl, Nashville, TN", lat: 36.1447, lng: -86.8027, interests: ["grocery", "church"], emergency_contact_name: "John Johnson", emergency_contact_phone: "6155559001" },
+  { name: "Bob Williams", phone: "6151000002", address: "1911 Broadway, Nashville, TN", lat: 36.1520, lng: -86.7960, interests: ["grocery", "pharmacy"], emergency_contact_name: "", emergency_contact_phone: "" },
+  { name: "Dorothy Smith", phone: "6151000003", address: "2100 West End Ave, Nashville, TN", lat: 36.1490, lng: -86.8010, interests: ["grocery", "park"], emergency_contact_name: "Linda Smith", emergency_contact_phone: "6155559002" },
 
   // Cluster 2: Midtown / Music Row — want park on same day
-  { name: "Carol Davis", phone: "6151000004", address: "1817 Division St, Nashville, TN", lat: 36.1530, lng: -86.7890, interests: ["park", "museum"], mobility_notes: "Wheelchair accessible vehicle needed", emergency_contact: "Son: 6155559003" },
-  { name: "Edward Brown", phone: "6151000005", address: "1600 Division St, Nashville, TN", lat: 36.1535, lng: -86.7930, interests: ["park", "library"], mobility_notes: "Needs front seat", emergency_contact: "" },
+  { name: "Carol Davis", phone: "6151000004", address: "1817 Division St, Nashville, TN", lat: 36.1530, lng: -86.7890, interests: ["park", "pharmacy"], emergency_contact_name: "Mike Davis", emergency_contact_phone: "6155559003" },
+  { name: "Edward Brown", phone: "6151000005", address: "1600 Division St, Nashville, TN", lat: 36.1535, lng: -86.7930, interests: ["park", "grocery"], emergency_contact_name: "", emergency_contact_phone: "" },
 
   // Cluster 3: Hillsboro Village — want church on same day
-  { name: "Faye Thompson", phone: "6151000006", address: "1808 21st Ave S, Nashville, TN", lat: 36.1380, lng: -86.7980, interests: ["church", "restaurant"], mobility_notes: "", emergency_contact: "Niece: 6155559004" },
-  { name: "George Wilson", phone: "6151000007", address: "2000 Belcourt Ave, Nashville, TN", lat: 36.1365, lng: -86.7965, interests: ["church", "museum"], mobility_notes: "", emergency_contact: "" },
-
-  // Standalone — library request, different date
-  { name: "Helen Martinez", phone: "6151000008", address: "401 21st Ave S, Nashville, TN", lat: 36.1480, lng: -86.7990, interests: ["library"], mobility_notes: "Hard of hearing", emergency_contact: "Grandson: 6155559005" },
+  { name: "Faye Thompson", phone: "6151000006", address: "1808 21st Ave S, Nashville, TN", lat: 36.1380, lng: -86.7980, interests: ["church", "pharmacy"], emergency_contact_name: "Nancy Thompson", emergency_contact_phone: "6155559004" },
+  { name: "George Wilson", phone: "6151000007", address: "2000 Belcourt Ave, Nashville, TN", lat: 36.1365, lng: -86.7965, interests: ["church", "park"], emergency_contact_name: "", emergency_contact_phone: "" },
 ];
 
 const volunteers = [
@@ -42,7 +39,6 @@ const volunteers = [
 // Group A: Alice + Bob + Dorothy → grocery, same day & overlapping time, near each other
 // Group B: Carol + Edward → park, same day & overlapping time, near each other
 // Group C: Faye + George → church, same day & overlapping time, near each other
-// Standalone: Helen → library, different day
 
 async function seed() {
   const pw = await hashPassword("123456");
@@ -84,9 +80,6 @@ async function seed() {
     // Group C: Church — Tuesday morning, overlapping windows
     { senior_id: s[5].id, destination_type: "church", destination_name: "West End Community Church", preferred_date: "2026-03-31", preferred_time_start: "08:30", preferred_time_end: "11:00" },
     { senior_id: s[6].id, destination_type: "church", destination_name: "Belmont Church", preferred_date: "2026-03-31", preferred_time_start: "09:00", preferred_time_end: "11:30" },
-
-    // Standalone: Library — Wednesday
-    { senior_id: s[7].id, destination_type: "library", destination_name: "Nashville Public Library", preferred_date: "2026-04-01", preferred_time_start: "10:00", preferred_time_end: "14:00" },
   ];
 
   console.log("Inserting outing requests...");
@@ -105,7 +98,6 @@ async function seed() {
   console.log("  Group A: Alice + Bob + Dorothy → grocery (Mon morning) → David Chen");
   console.log("  Group B: Carol + Edward → park (Mon afternoon) → James Park");
   console.log("  Group C: Faye + George → church (Tue morning) → Sarah Kim");
-  console.log("  Unmatched: Helen → library (Wed) — may match if volunteer available");
   console.log("\nTest logins:");
   console.log("  Senior:    phone 6151000001, password 123456");
   console.log("  Volunteer: phone 6152000001, password 123456");

@@ -10,7 +10,7 @@ import { getAuth, clearAuth } from "../../lib/auth";
 import type { AuthUser } from "../../lib/auth";
 import type { ApiResponse, Senior } from "../../lib/types";
 
-const INTERESTS = ["grocery", "church", "park", "museum", "library", "restaurant", "social_club"];
+const INTERESTS = ["grocery", "church", "park", "pharmacy"];
 
 export default function SeniorProfileScreen() {
   const router = useRouter();
@@ -24,8 +24,8 @@ export default function SeniorProfileScreen() {
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editAddress, setEditAddress] = useState("");
-  const [editMobility, setEditMobility] = useState("");
-  const [editEmergency, setEditEmergency] = useState("");
+  const [editEmergencyName, setEditEmergencyName] = useState("");
+  const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
   const [editInterests, setEditInterests] = useState<string[]>([]);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -44,8 +44,8 @@ export default function SeniorProfileScreen() {
         setEditName(res.data.name);
         setEditPhone(res.data.phone);
         setEditAddress(res.data.address);
-        setEditMobility(res.data.mobility_notes);
-        setEditEmergency(res.data.emergency_contact);
+        setEditEmergencyName(res.data.emergency_contact_name);
+        setEditEmergencyPhone(res.data.emergency_contact_phone);
         setEditInterests(res.data.interests || []);
       }
     } catch {
@@ -115,8 +115,8 @@ export default function SeniorProfileScreen() {
             <EditableRow label="Name" value={editName} isEditing={editingField === "name"} onEdit={() => { setEditingField("name"); setEditName(senior.name); }} onChangeText={setEditName} onSave={() => saveField("name", editName.trim())} onCancel={() => setEditingField(null)} saving={saving} />
             <EditableRow label="Phone" value={editPhone} isEditing={editingField === "phone"} onEdit={() => { setEditingField("phone"); setEditPhone(senior.phone); }} onChangeText={setEditPhone} onSave={() => saveField("phone", editPhone.trim())} onCancel={() => setEditingField(null)} saving={saving} keyboardType="phone-pad" />
             <EditableRow label="Address" value={editAddress} isEditing={editingField === "address"} onEdit={() => { setEditingField("address"); setEditAddress(senior.address); }} onChangeText={setEditAddress} onSave={() => saveField("address", editAddress.trim())} onCancel={() => setEditingField(null)} saving={saving} />
-            <EditableRow label="Emergency" value={editEmergency} isEditing={editingField === "emergency_contact"} onEdit={() => { setEditingField("emergency_contact"); setEditEmergency(senior.emergency_contact); }} onChangeText={setEditEmergency} onSave={() => saveField("emergency_contact", editEmergency.trim())} onCancel={() => setEditingField(null)} saving={saving} />
-            <EditableRow label="Mobility" value={editMobility} isEditing={editingField === "mobility_notes"} onEdit={() => { setEditingField("mobility_notes"); setEditMobility(senior.mobility_notes); }} onChangeText={setEditMobility} onSave={() => saveField("mobility_notes", editMobility.trim())} onCancel={() => setEditingField(null)} saving={saving} />
+            <EditableRow label="Emergency Name" value={editEmergencyName} isEditing={editingField === "emergency_contact_name"} onEdit={() => { setEditingField("emergency_contact_name"); setEditEmergencyName(senior.emergency_contact_name); }} onChangeText={setEditEmergencyName} onSave={() => saveField("emergency_contact_name", editEmergencyName.trim())} onCancel={() => setEditingField(null)} saving={saving} />
+            <EditableRow label="Emergency Phone" value={editEmergencyPhone} isEditing={editingField === "emergency_contact_phone"} onEdit={() => { setEditingField("emergency_contact_phone"); setEditEmergencyPhone(senior.emergency_contact_phone); }} onChangeText={setEditEmergencyPhone} onSave={() => saveField("emergency_contact_phone", editEmergencyPhone.trim())} onCancel={() => setEditingField(null)} saving={saving} keyboardType="phone-pad" />
           </View>
 
           <View style={styles.card}>

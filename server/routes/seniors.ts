@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
   if (error) return res.status(500).json({ data: null, error: error.message });
   // Only show first name in list for privacy
   const safe = (data || []).map((s: any) => {
-    const { password_hash, emergency_contact, ...rest } = s;
+    const { password_hash, emergency_contact_name, emergency_contact_phone, ...rest } = s;
     return { ...rest, name: s.name.split(" ")[0] };
   });
   res.json({ data: safe, error: null });
@@ -41,14 +41,14 @@ router.get("/:id", async (req, res) => {
 // PATCH /api/seniors/:id
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, phone, address, interests, mobility_notes, emergency_contact } = req.body;
+  const { name, phone, address, interests, emergency_contact_name, emergency_contact_phone } = req.body;
 
   const updates: Record<string, any> = {};
   if (name !== undefined) updates.name = name;
   if (phone !== undefined) updates.phone = phone;
   if (interests !== undefined) updates.interests = interests;
-  if (mobility_notes !== undefined) updates.mobility_notes = mobility_notes;
-  if (emergency_contact !== undefined) updates.emergency_contact = emergency_contact;
+  if (emergency_contact_name !== undefined) updates.emergency_contact_name = emergency_contact_name;
+  if (emergency_contact_phone !== undefined) updates.emergency_contact_phone = emergency_contact_phone;
 
   // If address changed, re-geocode
   if (address !== undefined) {
@@ -81,7 +81,7 @@ router.patch("/:id", async (req, res) => {
 
 // POST /api/seniors
 router.post("/", async (req, res) => {
-  const { name, phone, address, interests, mobility_notes, emergency_contact } = req.body;
+  const { name, phone, address, interests, emergency_contact_name, emergency_contact_phone } = req.body;
 
   if (!name || !address) {
     return res.status(400).json({ data: null, error: "Name and address are required" });
@@ -105,8 +105,8 @@ router.post("/", async (req, res) => {
       lat,
       lng,
       interests: interests || [],
-      mobility_notes: mobility_notes || "",
-      emergency_contact: emergency_contact || "",
+      emergency_contact_name: emergency_contact_name || "",
+      emergency_contact_phone: emergency_contact_phone || "",
     })
     .select()
     .single();

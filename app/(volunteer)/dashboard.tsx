@@ -14,7 +14,6 @@ interface Senior {
   name: string;
   phone: string;
   address: string;
-  mobility_notes: string;
   preferred_time_start?: string;
   preferred_time_end?: string;
   destination_name?: string;
@@ -286,9 +285,6 @@ function OutingCard({
             {senior.address ? (
               <Text style={styles.seniorAddress}>{senior.address}</Text>
             ) : null}
-            {senior.mobility_notes ? (
-              <Text style={styles.seniorNote}>{senior.mobility_notes}</Text>
-            ) : null}
           </View>
         </View>
       ))}
@@ -466,11 +462,6 @@ const styles = StyleSheet.create({
   seniorAddress: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
-    marginTop: 2,
-  },
-  seniorNote: {
-    fontSize: fontSize.xs,
-    color: colors.secondary,
     marginTop: 2,
   },
   reasoningBox: {

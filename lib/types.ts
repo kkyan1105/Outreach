@@ -8,8 +8,8 @@ export interface Senior {
   lat: number;
   lng: number;
   interests: string[];
-  mobility_notes: string;
-  emergency_contact: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
   created_at: string;
 }
 
@@ -57,8 +57,8 @@ export interface CreateSeniorRequest {
   phone: string;
   address: string;
   interests: string[];
-  mobility_notes?: string;
-  emergency_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
 }
 
 export interface CreateVolunteerRequest {

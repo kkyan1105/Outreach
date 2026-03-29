@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  View, Text, ScrollView, StyleSheet,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, Alert,
 } from "react-native";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
@@ -141,7 +141,21 @@ export default function SeniorStatusScreen() {
         <>
           <Text style={styles.sectionLabel}>Upcoming ({active.length})</Text>
           {active.map((req) => (
-            <RequestCard key={req.id} request={req} />
+            <RequestCard key={req.id} request={req} onCancel={async () => {
+              Alert.alert("Cancel Request?", "This will remove your outing request. If you were already matched, the ride will be updated.", [
+                { text: "Keep", style: "cancel" },
+                { text: "Cancel Request", style: "destructive", onPress: async () => {
+                  try {
+                    const res = await api<ApiResponse<OutingRequest>>(`/api/requests/${req.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ status: "cancelled" }),
+                    });
+                    if (res.error) Alert.alert("Error", res.error);
+                    else fetchRequests();
+                  } catch { Alert.alert("Error", "Could not cancel request."); }
+                }},
+              ]);
+            }} />
           ))}
         </>
       )}
@@ -158,7 +172,7 @@ export default function SeniorStatusScreen() {
   );
 }
 
-function RequestCard({ request }: { request: OutingRequest }) {
+function RequestCard({ request, onCancel }: { request: OutingRequest; onCancel?: () => void }) {
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
   const emoji = DESTINATION_EMOJI[request.destination_type] || "📍";
   const destLabel = request.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -203,6 +217,13 @@ function RequestCard({ request }: { request: OutingRequest }) {
           <ActivityIndicator size="small" color={cfg.color} />
         )}
       </View>
+
+      {/* Cancel button for active requests */}
+      {onCancel && (request.status === "pending" || request.status === "matched") && (
+        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+          <Text style={styles.cancelBtnText}>Cancel Request</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -330,5 +351,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
     lineHeight: 16,
+  },
+  cancelBtn: {
+    marginTop: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  cancelBtnText: {
+    fontSize: fontSize.sm,
+    fontWeight: "700",
+    color: colors.secondary,
   },
 });
