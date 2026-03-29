@@ -49,7 +49,7 @@ export default function SeniorHomeScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.actionCard, { backgroundColor: colors.tileGreen }]}
+        style={[styles.actionCard, { backgroundColor: colors.tileCoral }]}
         onPress={() => router.push("/(senior)/groups")}
       >
         <View style={styles.actionCardInner}>

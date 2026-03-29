@@ -11,6 +11,7 @@ import { getAuth, clearAuth } from "../../lib/auth";
 import type { AuthUser } from "../../lib/auth";
 import type { ApiResponse, Senior } from "../../lib/types";
 
+
 export default function SeniorProfileScreen() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -103,46 +104,22 @@ export default function SeniorProfileScreen() {
           {/* Personal Info */}
           <Text style={styles.sectionLabel}>Personal Info</Text>
           <View style={styles.card}>
-            <EditableRow
-              label="Name" value={editName} fieldKey="name"
-              editingField={editingField} setEditingField={setEditingField}
-              onChangeText={setEditName} onSave={() => saveField("name", editName.trim())}
-              original={senior.name} saving={saving}
-            />
-            <EditableRow
-              label="Phone" value={editPhone} fieldKey="phone"
-              editingField={editingField} setEditingField={setEditingField}
-              onChangeText={setEditPhone} onSave={() => saveField("phone", editPhone.trim())}
-              original={senior.phone} saving={saving} keyboardType="phone-pad"
-            />
-            <EditableRow
-              label="Address" value={editAddress} fieldKey="address"
-              editingField={editingField} setEditingField={setEditingField}
-              onChangeText={setEditAddress} onSave={() => saveField("address", editAddress.trim())}
-              original={senior.address} saving={saving} last
-            />
+            <EditableRow label="Name" value={editName} fieldKey="name" editingField={editingField} setEditingField={setEditingField} onChangeText={setEditName} onSave={() => saveField("name", editName.trim())} saving={saving} />
+            <EditableRow label="Phone" value={editPhone} fieldKey="phone" editingField={editingField} setEditingField={setEditingField} onChangeText={setEditPhone} onSave={() => saveField("phone", editPhone.trim())} saving={saving} keyboardType="phone-pad" />
+            <EditableRow label="Address" value={editAddress} fieldKey="address" editingField={editingField} setEditingField={setEditingField} onChangeText={setEditAddress} onSave={() => saveField("address", editAddress.trim())} saving={saving} last />
           </View>
 
           {/* Emergency Contact */}
           <Text style={styles.sectionLabel}>Emergency Contact</Text>
           <View style={styles.card}>
-            <EditableRow
-              label="Contact Name" value={editEmergencyName} fieldKey="emergency_contact_name"
-              editingField={editingField} setEditingField={setEditingField}
-              onChangeText={setEditEmergencyName} onSave={() => saveField("emergency_contact_name", editEmergencyName.trim())}
-              original={senior.emergency_contact_name} saving={saving}
-            />
-            <EditableRow
-              label="Contact Phone" value={editEmergencyPhone} fieldKey="emergency_contact_phone"
-              editingField={editingField} setEditingField={setEditingField}
-              onChangeText={setEditEmergencyPhone} onSave={() => saveField("emergency_contact_phone", editEmergencyPhone.trim())}
-              original={senior.emergency_contact_phone} saving={saving} keyboardType="phone-pad" last
-            />
+            <EditableRow label="Contact Name" value={editEmergencyName} fieldKey="emergency_contact_name" editingField={editingField} setEditingField={setEditingField} onChangeText={setEditEmergencyName} onSave={() => saveField("emergency_contact_name", editEmergencyName.trim())} saving={saving} />
+            <EditableRow label="Contact Phone" value={editEmergencyPhone} fieldKey="emergency_contact_phone" editingField={editingField} setEditingField={setEditingField} onChangeText={setEditEmergencyPhone} onSave={() => saveField("emergency_contact_phone", editEmergencyPhone.trim())} saving={saving} keyboardType="phone-pad" last />
           </View>
+
         </>
       )}
 
-      {/* Change Password */}
+      {/* Security */}
       <Text style={styles.sectionLabel}>Security</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.passwordToggle} onPress={() => setShowChangePassword(!showChangePassword)}>
@@ -185,7 +162,7 @@ export default function SeniorProfileScreen() {
   );
 }
 
-function EditableRow({ label, value, fieldKey, editingField, setEditingField, onChangeText, onSave, original, saving, keyboardType, last }: {
+function EditableRow({ label, value, fieldKey, editingField, setEditingField, onChangeText, onSave, saving, keyboardType, last }: {
   label: string;
   value: string;
   fieldKey: string;
@@ -193,13 +170,11 @@ function EditableRow({ label, value, fieldKey, editingField, setEditingField, on
   setEditingField: (f: string | null) => void;
   onChangeText: (t: string) => void;
   onSave: () => void;
-  original: string;
   saving: boolean;
   keyboardType?: "default" | "phone-pad";
   last?: boolean;
 }) {
   const isEditing = editingField === fieldKey;
-
   return (
     <View style={[styles.fieldRow, last && styles.lastRow]}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -224,11 +199,7 @@ function EditableRow({ label, value, fieldKey, editingField, setEditingField, on
       ) : (
         <View style={styles.fieldValueRow}>
           <Text style={styles.fieldValue}>{value || "Not set"}</Text>
-          <TouchableOpacity
-            style={styles.editIconBtn}
-            onPress={() => setEditingField(fieldKey)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
+          <TouchableOpacity style={styles.editIconBtn} onPress={() => setEditingField(fieldKey)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="pencil" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
@@ -283,9 +254,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
   },
-  editIconBtn: {
-    padding: 4,
-  },
+  editIconBtn: { padding: 4 },
   editInput: {
     backgroundColor: colors.background,
     borderRadius: radius.sm,
@@ -331,9 +300,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
   },
-  passwordForm: {
-    paddingBottom: spacing.md,
-  },
+  passwordForm: { paddingBottom: spacing.md },
   savePwBtn: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,

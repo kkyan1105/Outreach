@@ -107,12 +107,13 @@ export default function GroupsScreen() {
               if (res.error) {
                 Alert.alert("Could not join", res.error);
               } else {
+                fetchOutings();
                 Alert.alert(
                   "You're in!",
                   "You've joined the group. Check My Outings for updates.",
                   [
                     { text: "View My Outings", onPress: () => router.replace("/(senior)/status") },
-                    { text: "OK", onPress: () => fetchOutings() },
+                    { text: "OK" },
                   ]
                 );
               }
