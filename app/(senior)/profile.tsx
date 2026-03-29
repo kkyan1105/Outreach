@@ -3,14 +3,13 @@ import {
   View, Text, ScrollView, StyleSheet, TextInput,
   TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getAuth, clearAuth } from "../../lib/auth";
 import type { AuthUser } from "../../lib/auth";
 import type { ApiResponse, Senior } from "../../lib/types";
-
-const INTERESTS = ["grocery", "church", "park", "pharmacy"];
 
 export default function SeniorProfileScreen() {
   const router = useRouter();
@@ -26,7 +25,6 @@ export default function SeniorProfileScreen() {
   const [editAddress, setEditAddress] = useState("");
   const [editEmergencyName, setEditEmergencyName] = useState("");
   const [editEmergencyPhone, setEditEmergencyPhone] = useState("");
-  const [editInterests, setEditInterests] = useState<string[]>([]);
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPw, setCurrentPw] = useState("");
@@ -46,7 +44,6 @@ export default function SeniorProfileScreen() {
         setEditAddress(res.data.address);
         setEditEmergencyName(res.data.emergency_contact_name);
         setEditEmergencyPhone(res.data.emergency_contact_phone);
-        setEditInterests(res.data.interests || []);
       }
     } catch {
       Alert.alert("Error", "Could not load profile.");
@@ -78,14 +75,6 @@ export default function SeniorProfileScreen() {
     }
   }
 
-  function toggleInterest(key: string) {
-    const updated = editInterests.includes(key)
-      ? editInterests.filter((k) => k !== key)
-      : [...editInterests, key];
-    setEditInterests(updated);
-    saveField("interests", updated);
-  }
-
   async function handleSignOut() {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -111,46 +100,62 @@ export default function SeniorProfileScreen() {
 
       {senior && (
         <>
+          {/* Personal Info */}
+          <Text style={styles.sectionLabel}>Personal Info</Text>
           <View style={styles.card}>
-            <EditableRow label="Name" value={editName} isEditing={editingField === "name"} onEdit={() => { setEditingField("name"); setEditName(senior.name); }} onChangeText={setEditName} onSave={() => saveField("name", editName.trim())} onCancel={() => setEditingField(null)} saving={saving} />
-            <EditableRow label="Phone" value={editPhone} isEditing={editingField === "phone"} onEdit={() => { setEditingField("phone"); setEditPhone(senior.phone); }} onChangeText={setEditPhone} onSave={() => saveField("phone", editPhone.trim())} onCancel={() => setEditingField(null)} saving={saving} keyboardType="phone-pad" />
-            <EditableRow label="Address" value={editAddress} isEditing={editingField === "address"} onEdit={() => { setEditingField("address"); setEditAddress(senior.address); }} onChangeText={setEditAddress} onSave={() => saveField("address", editAddress.trim())} onCancel={() => setEditingField(null)} saving={saving} />
-            <EditableRow label="Emergency Name" value={editEmergencyName} isEditing={editingField === "emergency_contact_name"} onEdit={() => { setEditingField("emergency_contact_name"); setEditEmergencyName(senior.emergency_contact_name); }} onChangeText={setEditEmergencyName} onSave={() => saveField("emergency_contact_name", editEmergencyName.trim())} onCancel={() => setEditingField(null)} saving={saving} />
-            <EditableRow label="Emergency Phone" value={editEmergencyPhone} isEditing={editingField === "emergency_contact_phone"} onEdit={() => { setEditingField("emergency_contact_phone"); setEditEmergencyPhone(senior.emergency_contact_phone); }} onChangeText={setEditEmergencyPhone} onSave={() => saveField("emergency_contact_phone", editEmergencyPhone.trim())} onCancel={() => setEditingField(null)} saving={saving} keyboardType="phone-pad" />
+            <EditableRow
+              label="Name" value={editName} fieldKey="name"
+              editingField={editingField} setEditingField={setEditingField}
+              onChangeText={setEditName} onSave={() => saveField("name", editName.trim())}
+              original={senior.name} saving={saving}
+            />
+            <EditableRow
+              label="Phone" value={editPhone} fieldKey="phone"
+              editingField={editingField} setEditingField={setEditingField}
+              onChangeText={setEditPhone} onSave={() => saveField("phone", editPhone.trim())}
+              original={senior.phone} saving={saving} keyboardType="phone-pad"
+            />
+            <EditableRow
+              label="Address" value={editAddress} fieldKey="address"
+              editingField={editingField} setEditingField={setEditingField}
+              onChangeText={setEditAddress} onSave={() => saveField("address", editAddress.trim())}
+              original={senior.address} saving={saving} last
+            />
           </View>
 
+          {/* Emergency Contact */}
+          <Text style={styles.sectionLabel}>Emergency Contact</Text>
           <View style={styles.card}>
-            <View style={styles.interestHeader}>
-              <Text style={styles.cardTitle}>Interests</Text>
-              {saving && <ActivityIndicator size="small" color={colors.primary} />}
-            </View>
-            <View style={styles.chipGrid}>
-              {INTERESTS.map((key) => {
-                const selected = editInterests.includes(key);
-                return (
-                  <TouchableOpacity key={key} style={[styles.chip, selected && styles.chipSelected]} onPress={() => toggleInterest(key)}>
-                    <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
-                      {key.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <EditableRow
+              label="Contact Name" value={editEmergencyName} fieldKey="emergency_contact_name"
+              editingField={editingField} setEditingField={setEditingField}
+              onChangeText={setEditEmergencyName} onSave={() => saveField("emergency_contact_name", editEmergencyName.trim())}
+              original={senior.emergency_contact_name} saving={saving}
+            />
+            <EditableRow
+              label="Contact Phone" value={editEmergencyPhone} fieldKey="emergency_contact_phone"
+              editingField={editingField} setEditingField={setEditingField}
+              onChangeText={setEditEmergencyPhone} onSave={() => saveField("emergency_contact_phone", editEmergencyPhone.trim())}
+              original={senior.emergency_contact_phone} saving={saving} keyboardType="phone-pad" last
+            />
           </View>
         </>
       )}
 
       {/* Change Password */}
+      <Text style={styles.sectionLabel}>Security</Text>
       <View style={styles.card}>
-        <TouchableOpacity onPress={() => setShowChangePassword(!showChangePassword)}>
-          <Text style={styles.cardTitle}>Change Password {showChangePassword ? "▲" : "▼"}</Text>
+        <TouchableOpacity style={styles.passwordToggle} onPress={() => setShowChangePassword(!showChangePassword)}>
+          <Ionicons name="lock-closed-outline" size={22} color={colors.textPrimary} />
+          <Text style={styles.passwordToggleText}>Change Password</Text>
+          <Ionicons name={showChangePassword ? "chevron-up" : "chevron-down"} size={20} color={colors.textSecondary} />
         </TouchableOpacity>
         {showChangePassword && (
-          <>
+          <View style={styles.passwordForm}>
             <TextInput style={styles.editInput} placeholder="Current password" placeholderTextColor={colors.textSecondary} secureTextEntry value={currentPw} onChangeText={setCurrentPw} />
             <TextInput style={styles.editInput} placeholder="New password (min 6 chars)" placeholderTextColor={colors.textSecondary} secureTextEntry value={newPw} onChangeText={setNewPw} />
             <TouchableOpacity
-              style={[styles.chipSelected, { alignItems: "center", paddingVertical: 12, borderRadius: radius.pill, marginTop: spacing.xs }]}
+              style={styles.savePwBtn}
               disabled={pwLoading}
               onPress={async () => {
                 if (!currentPw || !newPw) { Alert.alert("Required", "Fill in both fields."); return; }
@@ -166,39 +171,68 @@ export default function SeniorProfileScreen() {
                 finally { setPwLoading(false); }
               }}
             >
-              <Text style={styles.chipLabelSelected}>{pwLoading ? "..." : "Update Password"}</Text>
+              <Text style={styles.savePwBtnText}>{pwLoading ? "Saving…" : "Update Password"}</Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
       </View>
 
       <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+        <Ionicons name="log-out-outline" size={20} color={colors.secondary} />
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-function EditableRow({ label, value, isEditing, onEdit, onChangeText, onSave, onCancel, saving, keyboardType }: {
-  label: string; value: string; isEditing: boolean; onEdit: () => void; onChangeText: (t: string) => void; onSave: () => void; onCancel: () => void; saving: boolean; keyboardType?: "default" | "phone-pad";
+function EditableRow({ label, value, fieldKey, editingField, setEditingField, onChangeText, onSave, original, saving, keyboardType, last }: {
+  label: string;
+  value: string;
+  fieldKey: string;
+  editingField: string | null;
+  setEditingField: (f: string | null) => void;
+  onChangeText: (t: string) => void;
+  onSave: () => void;
+  original: string;
+  saving: boolean;
+  keyboardType?: "default" | "phone-pad";
+  last?: boolean;
 }) {
-  if (isEditing) {
-    return (
-      <View style={styles.editRow}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <TextInput style={styles.editInput} value={value} onChangeText={onChangeText} autoFocus keyboardType={keyboardType || "default"} />
-        <View style={styles.editActions}>
-          <TouchableOpacity onPress={onSave} disabled={saving}><Text style={styles.saveText}>{saving ? "..." : "Save"}</Text></TouchableOpacity>
-          <TouchableOpacity onPress={onCancel}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const isEditing = editingField === fieldKey;
+
   return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value || "Not set"}</Text>
-      <TouchableOpacity onPress={onEdit}><Text style={styles.editBtn}>Edit</Text></TouchableOpacity>
+    <View style={[styles.fieldRow, last && styles.lastRow]}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {isEditing ? (
+        <>
+          <TextInput
+            style={styles.editInput}
+            value={value}
+            onChangeText={onChangeText}
+            autoFocus
+            keyboardType={keyboardType || "default"}
+          />
+          <View style={styles.editActions}>
+            <TouchableOpacity style={styles.saveBtn} onPress={onSave} disabled={saving}>
+              <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Save"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingField(null)}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <View style={styles.fieldValueRow}>
+          <Text style={styles.fieldValue}>{value || "Not set"}</Text>
+          <TouchableOpacity
+            style={styles.editIconBtn}
+            onPress={() => setEditingField(fieldKey)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="pencil" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -209,23 +243,116 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
   heading: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.textPrimary, lineHeight: 40, marginBottom: spacing.lg },
   headingAccent: { color: colors.primary },
-  card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.sm },
-  interestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  infoLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textSecondary, width: 90 },
-  infoValue: { flex: 1, fontSize: fontSize.md, fontWeight: "500", color: colors.textPrimary, textAlign: "right", marginRight: spacing.md },
-  editBtn: { fontSize: fontSize.sm, fontWeight: "600", color: colors.primary },
-  editRow: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  editInput: { backgroundColor: colors.background, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.primary, paddingHorizontal: spacing.sm, paddingVertical: 10, fontSize: fontSize.md, color: colors.textPrimary, marginVertical: spacing.xs },
-  editActions: { flexDirection: "row", gap: spacing.md, justifyContent: "flex-end" },
-  saveText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.primary },
-  cancelText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textSecondary },
-  chipGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.pill, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surface },
-  chipSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-  chipLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textSecondary },
-  chipLabelSelected: { color: colors.primary },
-  signOutButton: { borderRadius: radius.pill, padding: spacing.md, alignItems: "center", marginTop: spacing.lg, borderWidth: 2, borderColor: colors.secondary, backgroundColor: colors.surface },
+  sectionLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: spacing.xs,
+    marginLeft: 4,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  fieldRow: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  lastRow: { borderBottomWidth: 0 },
+  fieldLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  fieldValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  fieldValue: {
+    fontSize: fontSize.lg,
+    fontWeight: "500",
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  editIconBtn: {
+    padding: 4,
+  },
+  editInput: {
+    backgroundColor: colors.background,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 12,
+    fontSize: fontSize.lg,
+    color: colors.textPrimary,
+    marginTop: 4,
+  },
+  editActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  saveBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  saveBtnText: { fontSize: fontSize.md, fontWeight: "700", color: "#fff" },
+  cancelBtn: {
+    flex: 1,
+    borderRadius: radius.pill,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  cancelBtnText: { fontSize: fontSize.md, fontWeight: "600", color: colors.textSecondary },
+  passwordToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  passwordToggleText: {
+    flex: 1,
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  passwordForm: {
+    paddingBottom: spacing.md,
+  },
+  savePwBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  savePwBtnText: { fontSize: fontSize.md, fontWeight: "700", color: "#fff" },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    backgroundColor: colors.surface,
+  },
   signOutText: { fontSize: fontSize.lg, fontWeight: "700", color: colors.secondary },
 });

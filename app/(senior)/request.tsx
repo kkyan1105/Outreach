@@ -448,8 +448,8 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingTop: 60, paddingBottom: 40 },
   heading: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.textPrimary, lineHeight: 40, marginBottom: spacing.xs },
   headingAccent: { color: colors.primary },
-  subheading: { fontSize: fontSize.md, color: colors.textSecondary, lineHeight: 26, marginBottom: spacing.sm },
-  sectionLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.sm },
+  subheading: { fontSize: fontSize.lg, color: colors.textSecondary, lineHeight: 30, marginBottom: spacing.sm },
+  sectionLabel: { fontSize: fontSize.xl, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.sm },
   destGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
   destTile: {
     width: "47%", paddingVertical: spacing.md,
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   anyItemSub: { fontSize: fontSize.sm, color: colors.tileGold, marginTop: 2, opacity: 0.85 },
   anyItemSubSelected: { color: "#fff", opacity: 0.9 },
   anyCheckmark: { fontSize: fontSize.lg, color: "#fff", fontWeight: "800", marginLeft: spacing.xs },
-  dateScroll: { marginBottom: spacing.xl },
+  dateScroll: { marginBottom: spacing.sm },
   dateScrollContent: { gap: spacing.sm, paddingRight: spacing.lg },
   dateChip: {
     paddingHorizontal: spacing.md, paddingVertical: 14,
@@ -532,5 +532,5 @@ const styles = StyleSheet.create({
   timeDesc: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2, textAlign: "center" },
   timeDescSelected: { color: colors.primary },
   submitButton: { backgroundColor: colors.primary, borderRadius: radius.pill, padding: spacing.md, alignItems: "center" },
-  submitText: { fontSize: fontSize.lg, fontWeight: "700", color: "#FFFFFF" },
+  submitText: { fontSize: fontSize.xl, fontWeight: "700", color: "#FFFFFF" },
 });

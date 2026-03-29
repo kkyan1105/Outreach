@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl, Alert, Modal,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getAuth } from "../../lib/auth";
@@ -22,28 +23,24 @@ const DESTINATION_EMOJI: Record<string, string> = {
 const STATUS_CONFIG = {
   pending: {
     label: "Looking for a group…",
-    sublabel: "We're finding nearby seniors going to the same place.",
     color: colors.tileGold,
     bg: "#FFF8EC",
     dot: colors.tileGold,
   },
   matched: {
     label: "You're matched!",
-    sublabel: "A volunteer driver has been assigned to your group.",
     color: colors.primary,
     bg: colors.primaryLight,
     dot: colors.primary,
   },
   completed: {
     label: "Completed",
-    sublabel: "Hope you had a great outing!",
     color: colors.textSecondary,
     bg: colors.background,
     dot: colors.textSecondary,
   },
   cancelled: {
     label: "Cancelled",
-    sublabel: "This outing was cancelled.",
     color: colors.secondary,
     bg: colors.secondaryLight,
     dot: colors.secondary,
@@ -67,6 +64,7 @@ export default function SeniorStatusScreen() {
   const [requests, setRequests] = useState<OutingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<OutingRequest | null>(null);
 
   useEffect(() => {
     getAuth().then((user) => setSeniorId(user?.id || null));
@@ -88,6 +86,22 @@ export default function SeniorStatusScreen() {
   }, [seniorId]);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    try {
+      const res = await api<ApiResponse<OutingRequest>>(`/api/requests/${cancelTarget.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      if (res.error) Alert.alert("Error", res.error);
+      else fetchRequests();
+    } catch {
+      Alert.alert("Error", "Could not cancel request.");
+    } finally {
+      setCancelTarget(null);
+    }
+  }
 
   if (!seniorId) {
     return (
@@ -111,64 +125,66 @@ export default function SeniorStatusScreen() {
   const past = requests.filter((r) => r.status === "completed" || r.status === "cancelled");
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); fetchRequests(); }}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <Text style={styles.heading}>
-        My{"\n"}<Text style={styles.headingAccent}>Outings</Text>
-      </Text>
-      <Text style={styles.subheading}>Pull down to refresh and check your latest status.</Text>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchRequests(); }}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        <Text style={styles.heading}>
+          My{"\n"}<Text style={styles.headingAccent}>Outings</Text>
+        </Text>
+        <Text style={styles.subheading}>Pull down to refresh for latest status.</Text>
 
-      {requests.length === 0 && (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyEmoji}>🚗</Text>
-          <Text style={styles.emptyTitle}>No requests yet</Text>
-          <Text style={styles.emptyText}>
-            Go to the Senior tab to request your first group outing!
-          </Text>
+        {requests.length === 0 && (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyEmoji}>🚗</Text>
+            <Text style={styles.emptyTitle}>No requests yet</Text>
+            <Text style={styles.emptyText}>
+              Go to the Home tab to request your first group outing!
+            </Text>
+          </View>
+        )}
+
+        {active.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Upcoming ({active.length})</Text>
+            {active.map((req) => (
+              <RequestCard key={req.id} request={req} onCancel={() => setCancelTarget(req)} />
+            ))}
+          </>
+        )}
+
+        {past.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Past</Text>
+            {past.map((req) => (
+              <RequestCard key={req.id} request={req} />
+            ))}
+          </>
+        )}
+      </ScrollView>
+
+      <Modal visible={!!cancelTarget} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Cancel this outing?</Text>
+            <TouchableOpacity style={styles.modalCancelBtn} onPress={confirmCancel}>
+              <Text style={styles.modalCancelBtnText}>Yes, Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalKeepBtn} onPress={() => setCancelTarget(null)}>
+              <Text style={styles.modalKeepBtnText}>Keep It</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
-
-      {active.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>Upcoming ({active.length})</Text>
-          {active.map((req) => (
-            <RequestCard key={req.id} request={req} onCancel={async () => {
-              Alert.alert("Cancel Request?", "This will remove your outing request. If you were already matched, the ride will be updated.", [
-                { text: "Keep", style: "cancel" },
-                { text: "Cancel Request", style: "destructive", onPress: async () => {
-                  try {
-                    const res = await api<ApiResponse<OutingRequest>>(`/api/requests/${req.id}`, {
-                      method: "PATCH",
-                      body: JSON.stringify({ status: "cancelled" }),
-                    });
-                    if (res.error) Alert.alert("Error", res.error);
-                    else fetchRequests();
-                  } catch { Alert.alert("Error", "Could not cancel request."); }
-                }},
-              ]);
-            }} />
-          ))}
-        </>
-      )}
-
-      {past.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>Past</Text>
-          {past.map((req) => (
-            <RequestCard key={req.id} request={req} />
-          ))}
-        </>
-      )}
-    </ScrollView>
+      </Modal>
+    </>
   );
 }
 
@@ -176,10 +192,11 @@ function RequestCard({ request, onCancel }: { request: OutingRequest; onCancel?:
   const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
   const emoji = DESTINATION_EMOJI[request.destination_type] || "📍";
   const destLabel = request.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const canCancel = !!onCancel && (request.status === "pending" || request.status === "matched");
 
   return (
     <View style={styles.card}>
-      {/* Top row */}
+      {/* Top row: emoji + destination + trash icon */}
       <View style={styles.cardTop}>
         <View style={styles.emojiBox}>
           <Text style={styles.emoji}>{emoji}</Text>
@@ -190,6 +207,11 @@ function RequestCard({ request, onCancel }: { request: OutingRequest; onCancel?:
             <Text style={styles.destName}>{request.destination_name}</Text>
           ) : null}
         </View>
+        {canCancel && (
+          <TouchableOpacity style={styles.trashBtn} onPress={onCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="trash" size={28} color={colors.secondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Date & time */}
@@ -209,21 +231,11 @@ function RequestCard({ request, onCancel }: { request: OutingRequest; onCancel?:
       {/* Status banner */}
       <View style={[styles.statusBanner, { backgroundColor: cfg.bg }]}>
         <View style={[styles.statusDot, { backgroundColor: cfg.dot }]} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
-          <Text style={styles.statusSublabel}>{cfg.sublabel}</Text>
-        </View>
+        <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
         {request.status === "pending" && (
           <ActivityIndicator size="small" color={cfg.color} />
         )}
       </View>
-
-      {/* Cancel button for active requests */}
-      {onCancel && (request.status === "pending" || request.status === "matched") && (
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
-          <Text style={styles.cancelBtnText}>Cancel Request</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -247,10 +259,10 @@ const styles = StyleSheet.create({
   },
   headingAccent: { color: colors.primary },
   subheading: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.lg,
     color: colors.textSecondary,
-    lineHeight: 26,
-    marginBottom: spacing.xl,
+    lineHeight: 28,
+    marginBottom: spacing.xs,
   },
   loadingText: {
     marginTop: spacing.sm,
@@ -263,10 +275,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     alignItems: "center",
   },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
+  emptyEmoji: { fontSize: 48, marginBottom: spacing.sm },
   emptyTitle: {
     fontSize: fontSize.lg,
     fontWeight: "700",
@@ -277,10 +286,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.textSecondary,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 26,
   },
   sectionLabel: {
-    fontSize: fontSize.lg,
+    fontSize: fontSize.xl,
     fontWeight: "700",
     color: colors.textPrimary,
     marginBottom: spacing.sm,
@@ -293,43 +302,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: spacing.sm,
   },
-  cardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   emojiBox: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: radius.sm,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
   },
-  emoji: { fontSize: 24 },
-  destLabel: {
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    color: colors.textPrimary,
+  emoji: { fontSize: 28 },
+  destLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.textPrimary },
+  destName: { fontSize: fontSize.md, color: colors.textSecondary, marginTop: 2 },
+  trashBtn: {
+    padding: 8,
+    borderRadius: radius.sm,
   },
-  destName: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  infoRow: {
-    gap: spacing.xs,
-  },
-  infoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  infoIcon: { fontSize: 14 },
-  infoText: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
+  infoRow: { gap: spacing.xs },
+  infoItem: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  infoIcon: { fontSize: 18 },
+  infoText: { fontSize: fontSize.md, color: colors.textSecondary },
   statusBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -337,32 +329,50 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     padding: spacing.sm,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  statusLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: "700",
-  },
-  statusSublabel: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  cancelBtn: {
-    marginTop: spacing.sm,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: colors.secondary,
-    paddingVertical: 12,
+  statusDot: { width: 12, height: 12, borderRadius: 6 },
+  statusLabel: { fontSize: fontSize.md, fontWeight: "700" },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
     alignItems: "center",
+    padding: spacing.lg,
   },
-  cancelBtnText: {
-    fontSize: fontSize.sm,
+  modalBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    width: "100%",
+  },
+  modalTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "800",
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  modalCancelBtn: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.pill,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  modalCancelBtnText: {
+    fontSize: fontSize.md,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  modalKeepBtn: {
+    borderRadius: radius.pill,
+    paddingVertical: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  modalKeepBtnText: {
+    fontSize: fontSize.md,
     fontWeight: "700",
-    color: colors.secondary,
+    color: colors.textSecondary,
   },
 });
