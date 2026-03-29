@@ -4,13 +4,14 @@ import { geocodeAddress } from "../lib/geocode";
 
 const router = Router();
 
-// GET /api/seniors
-router.get("/", async (_req, res) => {
-  const { data, error } = await supabase
-    .from("seniors")
-    .select("*")
-    .order("created_at", { ascending: false });
+// GET /api/seniors?id=xxx  or  GET /api/seniors (all)
+router.get("/", async (req, res) => {
+  const { id } = req.query;
+  let query = supabase.from("seniors").select("*");
+  if (id) query = query.eq("id", id);
+  else query = query.order("created_at", { ascending: false });
 
+  const { data, error } = await query;
   if (error) return res.status(500).json({ data: null, error: error.message });
   res.json({ data, error: null });
 });

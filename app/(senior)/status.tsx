@@ -76,7 +76,7 @@ export default function SeniorStatusScreen() {
     if (!seniorId) return;
     try {
       const res = await api<ApiResponse<OutingRequest[]>>(
-        `/api/requests?seniorId=${seniorId}`
+        `/api/requests?senior_id=${seniorId}`
       );
       if (res.data) setRequests(res.data);
     } catch {
