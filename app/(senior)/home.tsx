@@ -57,6 +57,15 @@ export default function SeniorHomeScreen() {
         <Text style={styles.actionSub}>Check your request status</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[styles.actionCard, { backgroundColor: colors.tilePurple }]}
+        onPress={() => router.push("/(senior)/voice")}
+      >
+        <Text style={styles.actionEmoji}>🎙️</Text>
+        <Text style={styles.actionTitle}>Talk & Ride</Text>
+        <Text style={styles.actionSub}>Book a trip by speaking — no typing needed</Text>
+      </TouchableOpacity>
+
       <View style={styles.infoCard}>
         <Text style={styles.infoTitle}>How it works</Text>
         <Text style={styles.infoText}>
