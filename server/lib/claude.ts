@@ -15,6 +15,7 @@ interface MatchInput {
     lat: number;
     lng: number;
     destination_type: string;
+    destination_name: string;
     preferred_date: string;
     time_window: string;
   }[];
@@ -35,6 +36,7 @@ interface MatchOutput {
     volunteer_id: string;
     suggested_time: string;
     destination_type: string;
+    suggested_destination: string;
     reasoning: string;
   }[];
   unmatched_seniors: string[];

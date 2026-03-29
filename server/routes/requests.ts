@@ -1,24 +1,78 @@
 import { Router } from "express";
 import { supabase } from "../lib/supabase";
-
+import { triggerAutoMatch } from "../lib/auto-match";
 const router = Router();
+
+// Haversine distance in miles
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3959; // Earth radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 // GET /api/requests
 router.get("/", async (req, res) => {
-  const { status, senior_id } = req.query;
+  const { status, senior_id, destination_type, preferred_date, lat, lng, radius, sort } = req.query;
 
   let query = supabase
     .from("outing_requests")
-    .select("*")
+    .select("*, seniors(id, lat, lng)")
     .order("created_at", { ascending: false });
 
   if (status) query = query.eq("status", status as string);
   if (senior_id) query = query.eq("senior_id", senior_id as string);
+  if (destination_type) query = query.eq("destination_type", destination_type as string);
+  if (preferred_date) query = query.eq("preferred_date", preferred_date as string);
 
   const { data, error } = await query;
 
   if (error) return res.status(500).json({ data: null, error: error.message });
-  res.json({ data, error: null });
+
+  let results = data || [];
+
+  // Distance filtering (post-query since Supabase doesn't support geo natively)
+  const hasGeo = lat && lng;
+  const centerLat = hasGeo ? parseFloat(lat as string) : 0;
+  const centerLng = hasGeo ? parseFloat(lng as string) : 0;
+  const radiusMiles = radius ? parseFloat(radius as string) : Infinity;
+
+  if (hasGeo) {
+    // Attach computed distance to each result
+    results = results
+      .map((r: any) => {
+        const seniorLat = r.seniors?.lat || 0;
+        const seniorLng = r.seniors?.lng || 0;
+        const distance = haversineDistance(centerLat, centerLng, seniorLat, seniorLng);
+        return { ...r, _distance: distance };
+      })
+      .filter((r: any) => r._distance <= radiusMiles);
+  }
+
+  // Sorting
+  if (sort === "date_asc") {
+    results.sort((a: any, b: any) =>
+      (a.preferred_date || "").localeCompare(b.preferred_date || "")
+    );
+  } else if (sort === "date_desc") {
+    results.sort((a: any, b: any) =>
+      (b.preferred_date || "").localeCompare(a.preferred_date || "")
+    );
+  } else if (sort === "distance" && hasGeo) {
+    results.sort((a: any, b: any) => (a._distance || 0) - (b._distance || 0));
+  }
+
+  // Strip internal _distance and nested seniors join from response
+  const cleaned = results.map(({ _distance, seniors, ...rest }: any) => rest);
+
+  res.json({ data: cleaned, error: null });
 });
 
 // POST /api/requests
@@ -44,6 +98,12 @@ router.post("/", async (req, res) => {
     .single();
 
   if (error) return res.status(500).json({ data: null, error: error.message });
+
+  // Auto-match after new request
+  triggerAutoMatch().catch((e) =>
+    console.error("[requests] Auto-match failed:", (e as Error).message)
+  );
+
   res.json({ data, error: null });
 });
 

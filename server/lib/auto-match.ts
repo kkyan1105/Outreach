@@ -1,12 +1,20 @@
-import { Router } from "express";
-import { supabase } from "../lib/supabase";
-import { runMatching } from "../lib/claude";
-import { preClusterRequests, findNearestVolunteer } from "../lib/clustering";
+import { supabase } from "./supabase";
+import { runMatching } from "./claude";
+import { preClusterRequests, findNearestVolunteer } from "./clustering";
 
-const router = Router();
+let isRunning = false;
 
-// POST /api/match — Run AI matching on all pending requests
-router.post("/", async (_req, res) => {
+/**
+ * Auto-trigger matching logic — same as the match route but without Express req/res.
+ * Safe to call fire-and-forget; logs errors but never throws.
+ * Uses a lock to prevent concurrent runs.
+ */
+export async function triggerAutoMatch(): Promise<void> {
+  if (isRunning) {
+    console.log("[auto-match] Already running — skipping.");
+    return;
+  }
+  isRunning = true;
   try {
     // 1. Get all pending requests with senior info
     const { data: requests, error: reqErr } = await supabase
@@ -14,9 +22,13 @@ router.post("/", async (_req, res) => {
       .select("*, seniors(id, name, lat, lng, interests, mobility_notes)")
       .eq("status", "pending");
 
-    if (reqErr) return res.status(500).json({ data: null, error: reqErr.message });
-    if (!requests || requests.length === 0) {
-      return res.json({ data: { groups: [], unmatched_seniors: [], unmatched_reason: "No pending requests" }, error: null });
+    if (reqErr) {
+      console.error("[auto-match] Failed to fetch requests:", reqErr.message);
+      return;
+    }
+    if (!requests || requests.length < 2) {
+      console.log("[auto-match] Less than 2 pending requests — skipping.");
+      return;
     }
 
     // 2. Get all volunteers
@@ -24,16 +36,13 @@ router.post("/", async (_req, res) => {
       .from("volunteers")
       .select("*");
 
-    if (volErr) return res.status(500).json({ data: null, error: volErr.message });
+    if (volErr) {
+      console.error("[auto-match] Failed to fetch volunteers:", volErr.message);
+      return;
+    }
     if (!volunteers || volunteers.length === 0) {
-      return res.json({
-        data: {
-          groups: [],
-          unmatched_seniors: requests.map((r: any) => r.senior_id),
-          unmatched_reason: "No volunteers available",
-        },
-        error: null,
-      });
+      console.log("[auto-match] No volunteers available — skipping.");
+      return;
     }
 
     // 3. Filter out volunteers already assigned to a pending/confirmed outing
@@ -46,14 +55,8 @@ router.post("/", async (_req, res) => {
     const availableVolunteers = volunteers.filter((v: any) => !busyVolunteerIds.has(v.id));
 
     if (availableVolunteers.length === 0) {
-      return res.json({
-        data: {
-          groups: [],
-          unmatched_seniors: requests.map((r: any) => r.senior_id),
-          unmatched_reason: "All volunteers are currently assigned to outings",
-        },
-        error: null,
-      });
+      console.log("[auto-match] All volunteers are busy — skipping.");
+      return;
     }
 
     // 4. DBSCAN pre-clustering by destination + geography
@@ -72,7 +75,7 @@ router.post("/", async (_req, res) => {
       lng: v.lng,
     }));
     const assignedVolunteers = new Set<string>();
-    const clusterHints = preClusters.map(c => {
+    const clusterHints = preClusters.map((c) => {
       const nearest = findNearestVolunteer(c.center, volunteerPoints, assignedVolunteers);
       if (nearest) assignedVolunteers.add(nearest.volunteer_id);
       return {
@@ -109,14 +112,9 @@ router.post("/", async (_req, res) => {
     };
 
     // 6. Call AI for matching
-    let matchResult;
-    try {
-      matchResult = await runMatching(input);
-    } catch (e) {
-      return res.status(500).json({ data: null, error: `AI matching failed: ${(e as Error).message}` });
-    }
+    const matchResult = await runMatching(input);
 
-    // 7. Validate AI output — filter out groups with invalid IDs
+    // 7. Validate AI output
     const validSeniorIds = new Set(requests.map((r: any) => r.senior_id));
     const validVolunteerIds = new Set(availableVolunteers.map((v: any) => v.id));
 
@@ -126,18 +124,48 @@ router.post("/", async (_req, res) => {
       return seniorsValid && volunteerValid && group.senior_ids.length > 0;
     });
 
-    // 8. Create outing records and update request statuses
-    const createdOutings = [];
+    // 8. Fetch cancelled outings to avoid re-creating them
+    const { data: cancelledOutings } = await supabase
+      .from("outings")
+      .select("volunteer_id, request_ids")
+      .eq("status", "cancelled");
+
+    const cancelledKeys = new Set(
+      (cancelledOutings || []).map((o: any) =>
+        `${o.volunteer_id}:${(o.request_ids || []).sort().join(",")}`
+      )
+    );
+
+    // 9. Create outing records and update request statuses
+    let created = 0;
     for (const group of validGroups) {
       const requestIds = requests
         .filter((r: any) => group.senior_ids.includes(r.senior_id))
         .map((r: any) => r.id);
 
-      const { data: outing, error: outErr } = await supabase
+      // Re-check that all requests are still pending (prevent duplicates)
+      const { data: freshReqs } = await supabase
+        .from("outing_requests")
+        .select("id, status")
+        .in("id", requestIds);
+      const stillPending = (freshReqs || []).filter((r: any) => r.status === "pending").map((r: any) => r.id);
+      if (stillPending.length === 0) {
+        console.log("[auto-match] All requests in group already matched — skipping.");
+        continue;
+      }
+
+      // Skip if this exact volunteer + requests combo was previously cancelled
+      const comboKey = `${group.volunteer_id}:${stillPending.sort().join(",")}`;
+      if (cancelledKeys.has(comboKey)) {
+        console.log("[auto-match] Skipping previously cancelled group.");
+        continue;
+      }
+
+      const { error: outErr } = await supabase
         .from("outings")
         .insert({
           volunteer_id: group.volunteer_id,
-          request_ids: requestIds,
+          request_ids: stillPending,
           scheduled_date: requests.find((r: any) => group.senior_ids.includes(r.senior_id))?.preferred_date,
           scheduled_time: group.suggested_time,
           destination_type: group.destination_type,
@@ -148,30 +176,22 @@ router.post("/", async (_req, res) => {
         .single();
 
       if (outErr) {
-        console.error("Failed to create outing:", outErr.message);
+        console.error("[auto-match] Failed to create outing:", outErr.message);
         continue;
       }
 
-      createdOutings.push(outing);
+      created++;
 
       await supabase
         .from("outing_requests")
         .update({ status: "matched" })
-        .in("id", requestIds);
+        .in("id", stillPending);
     }
 
-    res.json({
-      data: {
-        ...matchResult,
-        groups: validGroups,
-        outings_created: createdOutings.length,
-      },
-      error: null,
-    });
+    console.log(`[auto-match] Created ${created} outings from ${validGroups.length} groups.`);
   } catch (e) {
-    console.error("Match endpoint error:", e);
-    res.status(500).json({ data: null, error: `Unexpected error: ${(e as Error).message}` });
+    console.error("[auto-match] Unexpected error:", (e as Error).message);
+  } finally {
+    isRunning = false;
   }
-});
-
-export default router;
+}

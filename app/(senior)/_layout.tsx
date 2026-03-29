@@ -20,6 +20,7 @@ export default function SeniorLayout() {
       <Tabs.Screen name="home" options={{ title: "Home" }} />
       <Tabs.Screen name="request" options={{ title: "Request Outing" }} />
       <Tabs.Screen name="status" options={{ title: "My Outings" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }

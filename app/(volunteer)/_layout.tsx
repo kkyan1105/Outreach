@@ -18,6 +18,8 @@ export default function VolunteerLayout() {
       }}
     >
       <Tabs.Screen name="dashboard" options={{ title: "My Outings" }} />
+      <Tabs.Screen name="explore" options={{ title: "Explore" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }

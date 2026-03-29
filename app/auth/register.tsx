@@ -26,17 +26,6 @@ const VEHICLE_TYPES = [
   { key: "accessible", label: "Wheelchair Accessible" },
 ];
 
-const AVAILABILITY = [
-  { key: "monday_morning", label: "Mon AM" },
-  { key: "monday_afternoon", label: "Mon PM" },
-  { key: "wednesday_morning", label: "Wed AM" },
-  { key: "wednesday_afternoon", label: "Wed PM" },
-  { key: "friday_morning", label: "Fri AM" },
-  { key: "friday_afternoon", label: "Fri PM" },
-  { key: "saturday_morning", label: "Sat AM" },
-  { key: "saturday_afternoon", label: "Sat PM" },
-];
-
 export default function RegisterScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role: "senior" | "volunteer" }>();
@@ -51,16 +40,11 @@ export default function RegisterScreen() {
   const [interests, setInterests] = useState<string[]>([]);
   const [vehicleType, setVehicleType] = useState("sedan");
   const [maxPassengers, setMaxPassengers] = useState("4");
-  const [availability, setAvailability] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   function toggleInterest(key: string) {
     setInterests((prev: string[]) => prev.includes(key) ? prev.filter((k: string) => k !== key) : [...prev, key]);
   }
-  function toggleAvailability(key: string) {
-    setAvailability((prev: string[]) => prev.includes(key) ? prev.filter((k: string) => k !== key) : [...prev, key]);
-  }
-
   async function handleRegister() {
     if (!name.trim() || !phone.trim() || !address.trim() || !password.trim()) {
       Alert.alert("Required", "Please fill in name, phone, address and password.");
@@ -81,7 +65,6 @@ export default function RegisterScreen() {
       } else {
         body.vehicle_type = vehicleType;
         body.max_passengers = parseInt(maxPassengers) || 4;
-        body.availability = availability;
       }
 
       const res = await api<ApiResponse<AuthUser>>("/api/auth/register", {
@@ -126,6 +109,7 @@ export default function RegisterScreen() {
       <View style={styles.card}>
         <Field label="Full Name *" value={name} onChangeText={setName} placeholder="e.g. Alice Johnson" />
         <Field label="Phone Number *" value={phone} onChangeText={setPhone} placeholder="615-555-0101" keyboardType="phone-pad" />
+        {/* TODO: Replace with Google Places Autocomplete (react-native-google-places-autocomplete) for proper address validation and geocoding */}
         <Field label="Home Address *" value={address} onChangeText={setAddress} placeholder="123 Main St, Nashville, TN" />
         <Field label="Password *" value={password} onChangeText={setPassword} placeholder="••••••••" secure />
         {isSenior && (
@@ -173,21 +157,6 @@ export default function RegisterScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>When are you available?</Text>
-          <View style={styles.chipGrid}>
-            {AVAILABILITY.map((slot) => {
-              const selected = availability.includes(slot.key);
-              return (
-                <TouchableOpacity
-                  key={slot.key}
-                  style={[styles.chip, selected && styles.chipSelectedCoral]}
-                  onPress={() => toggleAvailability(slot.key)}
-                >
-                  <Text style={[styles.chipLabel, selected && styles.chipLabelCoral]}>{slot.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </>
       )}
 
