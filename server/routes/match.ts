@@ -141,7 +141,7 @@ router.post("/", async (_req, res) => {
           scheduled_date: requests.find((r: any) => group.senior_ids.includes(r.senior_id))?.preferred_date,
           scheduled_time: group.suggested_time,
           destination_type: group.destination_type,
-          route_info: { reasoning: group.reasoning, suggested_destination: group.suggested_destination || "" },
+          route_info: { reasoning: group.reasoning, destination_name: group.suggested_destination || "", suggested_destination: group.suggested_destination || "" },
           status: "pending",
         })
         .select()
