@@ -118,4 +118,39 @@ router.post("/login", async (req, res) => {
   });
 });
 
+// POST /api/auth/change-password
+router.post("/change-password", async (req, res) => {
+  const { role, id, current_password, new_password } = req.body;
+
+  if (!role || !id || !current_password || !new_password) {
+    return res.status(400).json({ data: null, error: "role, id, current_password, and new_password are required" });
+  }
+
+  if (new_password.length < 6) {
+    return res.status(400).json({ data: null, error: "New password must be at least 6 characters" });
+  }
+
+  const table = role === "senior" ? "seniors" : "volunteers";
+
+  const { data: user, error } = await supabase
+    .from(table)
+    .select("id, password_hash")
+    .eq("id", id)
+    .single();
+
+  if (error || !user) {
+    return res.status(404).json({ data: null, error: "User not found" });
+  }
+
+  const valid = await verifyPassword(current_password, user.password_hash);
+  if (!valid) {
+    return res.status(401).json({ data: null, error: "Current password is incorrect" });
+  }
+
+  const newHash = await hashPassword(new_password);
+  await supabase.from(table).update({ password_hash: newHash }).eq("id", id);
+
+  res.json({ data: { success: true }, error: null });
+});
+
 export default router;

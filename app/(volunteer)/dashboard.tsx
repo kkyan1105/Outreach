@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, StyleSheet,
   TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getAuth } from "../../lib/auth";
@@ -14,6 +15,9 @@ interface Senior {
   phone: string;
   address: string;
   mobility_notes: string;
+  preferred_time_start?: string;
+  preferred_time_end?: string;
+  destination_name?: string;
 }
 
 interface OutingWithDetails {
@@ -28,14 +32,15 @@ interface OutingWithDetails {
 }
 
 const DESTINATION_EMOJI: Record<string, string> = {
-  grocery: "🛒",
-  church: "⛪",
-  park: "🌳",
-  museum: "🏛️",
-  library: "📚",
-  restaurant: "🍽️",
-  social_club: "🎉",
-  other: "📍",
+  grocery: "\u{1F6D2}",
+  church: "\u26EA",
+  park: "\u{1F333}",
+  museum: "\u{1F3DB}\uFE0F",
+  library: "\u{1F4DA}",
+  restaurant: "\u{1F37D}\uFE0F",
+  social_club: "\u{1F389}",
+  other: "\u{1F4CD}",
+  pharmacy: "\u{1F48A}",
 };
 
 const STATUS_CONFIG = {
@@ -57,6 +62,14 @@ function formatTime(timeStr: string) {
   return `${hour}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
+function isOutingInPast(outing: OutingWithDetails): boolean {
+  const now = new Date();
+  const [h, m] = (outing.scheduled_time || "00:00").split(":").map(Number);
+  const outingDate = new Date(outing.scheduled_date + "T00:00:00");
+  outingDate.setHours(h, m, 0, 0);
+  return outingDate < now;
+}
+
 export default function VolunteerDashboardScreen() {
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
   const [outings, setOutings] = useState<OutingWithDetails[]>([]);
@@ -74,7 +87,7 @@ export default function VolunteerDashboardScreen() {
     if (!volunteerId) return;
     try {
       const res = await api<ApiResponse<OutingWithDetails[]>>(
-        `/api/outings?volunteerId=${volunteerId}`
+        `/api/outings?volunteer_id=${volunteerId}`
       );
       if (res.data) setOutings(res.data);
     } catch {
@@ -85,7 +98,12 @@ export default function VolunteerDashboardScreen() {
     }
   }, [volunteerId]);
 
-  useEffect(() => { fetchOutings(); }, [fetchOutings]);
+  // Re-fetch every time the tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchOutings();
+    }, [fetchOutings])
+  );
 
   async function handleAction(outingId: string, status: "confirmed" | "cancelled") {
     setActionLoading(outingId + status);
@@ -97,9 +115,13 @@ export default function VolunteerDashboardScreen() {
       if (res.error) {
         Alert.alert("Error", res.error);
       } else {
-        setOutings((prev) =>
-          prev.map((o) => (o.id === outingId ? { ...o, status } : o))
-        );
+        // Refresh immediately
+        fetchOutings();
+        // Refresh again after auto-match has time to run
+        if (status === "cancelled") {
+          setTimeout(() => fetchOutings(), 3000);
+          setTimeout(() => fetchOutings(), 6000);
+        }
       }
     } catch {
       Alert.alert("Error", "Could not update outing.");
@@ -121,13 +143,15 @@ export default function VolunteerDashboardScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.secondary} />
-        <Text style={styles.loadingText}>Loading your outings…</Text>
+        <Text style={styles.loadingText}>Loading your outings...</Text>
       </View>
     );
   }
 
   const pending = outings.filter((o) => o.status === "pending");
-  const others = outings.filter((o) => o.status !== "pending");
+  const confirmed = outings.filter((o) => o.status === "confirmed" && !isOutingInPast(o));
+  const past = outings.filter((o) => (o.status === "confirmed" || o.status === "completed") && isOutingInPast(o));
+  const cancelled = outings.filter((o) => o.status === "cancelled");
 
   return (
     <ScrollView
@@ -155,6 +179,7 @@ export default function VolunteerDashboardScreen() {
               key={outing.id}
               outing={outing}
               actionLoading={actionLoading}
+              variant="pending"
               onAccept={() => handleAction(outing.id, "confirmed")}
               onDecline={() =>
                 Alert.alert("Decline outing?", "The seniors will be re-matched with another volunteer.", [
@@ -167,11 +192,40 @@ export default function VolunteerDashboardScreen() {
         </>
       )}
 
-      {others.length > 0 && (
+      {confirmed.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Past & confirmed</Text>
-          {others.map((outing) => (
-            <OutingCard key={outing.id} outing={outing} actionLoading={actionLoading} />
+          <Text style={styles.sectionLabel}>Confirmed ({confirmed.length})</Text>
+          {confirmed.map((outing) => (
+            <OutingCard
+              key={outing.id}
+              outing={outing}
+              actionLoading={actionLoading}
+              variant="confirmed"
+              onCancel={() =>
+                Alert.alert("Cancel outing?", "This will free the ride for another volunteer.", [
+                  { text: "Keep", style: "cancel" },
+                  { text: "Cancel Outing", style: "destructive", onPress: () => handleAction(outing.id, "cancelled") },
+                ])
+              }
+            />
+          ))}
+        </>
+      )}
+
+      {past.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Past ({past.length})</Text>
+          {past.map((outing) => (
+            <OutingCard key={outing.id} outing={outing} actionLoading={actionLoading} variant="past" />
+          ))}
+        </>
+      )}
+
+      {cancelled.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Cancelled ({cancelled.length})</Text>
+          {cancelled.map((outing) => (
+            <OutingCard key={outing.id} outing={outing} actionLoading={actionLoading} variant="past" />
           ))}
         </>
       )}
@@ -180,16 +234,19 @@ export default function VolunteerDashboardScreen() {
 }
 
 function OutingCard({
-  outing, actionLoading, onAccept, onDecline,
+  outing, actionLoading, variant, onAccept, onDecline, onCancel,
 }: {
   outing: OutingWithDetails;
   actionLoading: string | null;
+  variant: "pending" | "confirmed" | "past";
   onAccept?: () => void;
   onDecline?: () => void;
+  onCancel?: () => void;
 }) {
-  const statusCfg = STATUS_CONFIG[outing.status];
-  const emoji = DESTINATION_EMOJI[outing.destination_type] || "📍";
-  const isPending = outing.status === "pending";
+  const statusCfg = variant === "past"
+    ? { label: "Past", color: colors.textSecondary, bg: colors.background }
+    : STATUS_CONFIG[outing.status];
+  const emoji = DESTINATION_EMOJI[outing.destination_type] || "\u{1F4CD}";
 
   return (
     <View style={styles.card}>
@@ -221,6 +278,14 @@ function OutingCard({
           <View style={styles.seniorDot} />
           <View style={{ flex: 1 }}>
             <Text style={styles.seniorName}>{senior.name}</Text>
+            {senior.preferred_time_start && senior.preferred_time_end ? (
+              <Text style={styles.seniorTime}>
+                {formatTime(senior.preferred_time_start)} – {formatTime(senior.preferred_time_end)}
+              </Text>
+            ) : null}
+            {senior.address ? (
+              <Text style={styles.seniorAddress}>{senior.address}</Text>
+            ) : null}
             {senior.mobility_notes ? (
               <Text style={styles.seniorNote}>{senior.mobility_notes}</Text>
             ) : null}
@@ -228,15 +293,8 @@ function OutingCard({
         </View>
       ))}
 
-      {/* AI reasoning */}
-      {outing.route_info?.reasoning && (
-        <View style={styles.reasoningBox}>
-          <Text style={styles.reasoningText}>"{outing.route_info.reasoning}"</Text>
-        </View>
-      )}
-
-      {/* Actions */}
-      {isPending && (
+      {/* Actions — pending: Accept/Decline */}
+      {variant === "pending" && (
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionBtn, styles.declineBtn]}
@@ -258,6 +316,23 @@ function OutingCard({
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.acceptBtnText}>Accept</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Actions — confirmed (future): Cancel */}
+      {variant === "confirmed" && (
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.cancelBtn]}
+            onPress={onCancel}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === outing.id + "cancelled" ? (
+              <ActivityIndicator color={colors.secondary} size="small" />
+            ) : (
+              <Text style={styles.cancelBtnText}>Cancel</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -382,6 +457,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
   },
+  seniorTime: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: colors.tileGold,
+    marginTop: 2,
+  },
+  seniorAddress: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   seniorNote: {
     fontSize: fontSize.xs,
     color: colors.secondary,
@@ -427,5 +513,15 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  cancelBtn: {
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    backgroundColor: colors.surface,
+  },
+  cancelBtnText: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.secondary,
   },
 });
