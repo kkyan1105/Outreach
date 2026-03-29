@@ -6,5 +6,9 @@ export async function api<T>(path: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Server returned ${res.status} (non-JSON). Is the server running?`);
+  }
   return res.json();
 }

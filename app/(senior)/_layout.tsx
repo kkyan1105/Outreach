@@ -25,10 +25,11 @@ export default function SeniorLayout() {
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Home", tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} /> }} />
-      <Tabs.Screen name="request" options={{ title: "Request", tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} /> }} />
       <Tabs.Screen name="status" options={{ title: "My Outings", tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focused={focused} /> }} />
-      <Tabs.Screen name="voice" options={{ title: "Talk & Ride", tabBarIcon: ({ focused }) => <TabIcon emoji="🎙️" focused={focused} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <TabIcon emoji="⚙️" focused={focused} /> }} />
+      <Tabs.Screen name="request" options={{ href: null }} />
+      <Tabs.Screen name="voice" options={{ href: null }} />
+      <Tabs.Screen name="groups" options={{ href: null }} />
     </Tabs>
   );
 }

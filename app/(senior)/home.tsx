@@ -49,6 +49,19 @@ export default function SeniorHomeScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[styles.actionCard, { backgroundColor: colors.tileGreen }]}
+        onPress={() => router.push("/(senior)/groups")}
+      >
+        <View style={styles.actionCardInner}>
+          <View style={styles.actionTextBlock}>
+            <Text style={styles.actionTitle}>Groups Near You</Text>
+            <Text style={styles.actionSub}>Browse and join a group already forming</Text>
+          </View>
+          <Text style={styles.actionEmoji}>👥</Text>
+        </View>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={[styles.actionCard, { backgroundColor: colors.tilePurple }]}
         onPress={() => router.push("/(senior)/voice")}
       >
@@ -60,7 +73,6 @@ export default function SeniorHomeScreen() {
           <Text style={styles.actionEmoji}>🎙️</Text>
         </View>
       </TouchableOpacity>
-
     </ScrollView>
   );
 }
@@ -68,9 +80,7 @@ export default function SeniorHomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingTop: 60, paddingBottom: 40 },
-  headerRow: {
-    marginBottom: spacing.sm,
-  },
+  headerRow: { marginBottom: spacing.sm },
   greeting: { fontSize: fontSize.lg, color: colors.textSecondary },
   name: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.textPrimary },
   sectionTitle: {
@@ -89,19 +99,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  actionTextBlock: {
-    flex: 1,
-    marginRight: spacing.xs,
-  },
+  actionTextBlock: { flex: 1, marginRight: spacing.xs },
   actionEmoji: { fontSize: 36, width: 40, textAlign: "center" },
   actionTitle: { fontSize: fontSize.xl, fontWeight: "800", color: "#fff", marginBottom: 6 },
   actionSub: { fontSize: fontSize.lg, color: "rgba(255,255,255,0.85)" },
-  infoCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  infoTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.textPrimary, marginBottom: spacing.xs },
-  infoText: { fontSize: fontSize.sm, color: colors.textSecondary, lineHeight: 22 },
 });

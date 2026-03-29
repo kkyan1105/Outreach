@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { supabase } from "../lib/supabase";
 import { triggerAutoMatch } from "../lib/auto-match";
+import { planRoute } from "../lib/route-planner";
 
 const router = Router();
 
@@ -331,6 +332,85 @@ function findOverlap(requests: any[]): { start: string; end: string } | null {
     end: `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`,
   };
 }
+
+// POST /api/outings/:id/join — senior joins an existing outing directly
+router.post("/:id/join", async (req, res) => {
+  const { id } = req.params;
+  const { senior_id } = req.body;
+
+  if (!senior_id) {
+    return res.status(400).json({ data: null, error: "senior_id is required" });
+  }
+
+  const { data: outing, error: outErr } = await supabase
+    .from("outings")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (outErr || !outing) return res.status(404).json({ data: null, error: "Outing not found" });
+  if (outing.status === "cancelled" || outing.status === "completed") {
+    return res.status(400).json({ data: null, error: "Cannot join a cancelled or completed outing" });
+  }
+
+  // Check senior isn't already in this outing
+  if ((outing.request_ids || []).length > 0) {
+    const { data: existingReqs } = await supabase
+      .from("outing_requests")
+      .select("senior_id")
+      .in("id", outing.request_ids);
+    if ((existingReqs || []).some((r: any) => r.senior_id === senior_id)) {
+      return res.status(400).json({ data: null, error: "You are already in this outing" });
+    }
+  }
+
+  // Build a time range from the outing's scheduled_time (start + 3h end)
+  const scheduledStart = outing.scheduled_time || "09:00";
+  const [h, m] = scheduledStart.split(":").map(Number);
+  const endH = Math.min(h + 3, 21);
+  const scheduledEnd = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+  // Create the request
+  const { data: newRequest, error: reqErr } = await supabase
+    .from("outing_requests")
+    .insert({
+      senior_id,
+      destination_type: outing.destination_type,
+      destination_name: null,
+      preferred_date: outing.scheduled_date,
+      preferred_time_start: scheduledStart,
+      preferred_time_end: scheduledEnd,
+      status: "pending",
+    })
+    .select()
+    .single();
+
+  if (reqErr || !newRequest) {
+    return res.status(500).json({ data: null, error: "Could not create request" });
+  }
+
+  // Add request to the outing
+  const updatedIds = [...(outing.request_ids || []), newRequest.id];
+  const { data: updated, error: updateErr } = await supabase
+    .from("outings")
+    .update({ request_ids: updatedIds })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (updateErr) return res.status(500).json({ data: null, error: updateErr.message });
+
+  await supabase.from("outing_requests").update({ status: "matched" }).eq("id", newRequest.id);
+
+  // Pre-warm the route so volunteer sees updated plan immediately on next open
+  if (outing.volunteer_id) {
+    planRoute(id).catch((e) =>
+      console.error("[outings] Route pre-warm after join failed:", (e as Error).message)
+    );
+  }
+
+  res.json({ data: updated, error: null });
+});
 
 // POST /api/outings/:id/add — add pending request(s) to an existing outing
 router.post("/:id/add", async (req, res) => {
