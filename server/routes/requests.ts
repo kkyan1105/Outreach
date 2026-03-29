@@ -161,6 +161,12 @@ router.patch("/:id", async (req, res) => {
     .single();
 
   if (error) return res.status(500).json({ data: null, error: error.message });
+
+  // Re-match after senior cancels (remaining seniors may need regrouping)
+  triggerAutoMatch().catch((e) =>
+    console.error("[requests] Auto-match after cancel failed:", (e as Error).message)
+  );
+
   res.json({ data, error: null });
 });
 

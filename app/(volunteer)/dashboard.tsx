@@ -4,6 +4,7 @@ import {
   TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getAuth } from "../../lib/auth";
@@ -70,11 +71,13 @@ function isOutingInPast(outing: OutingWithDetails): boolean {
 }
 
 export default function VolunteerDashboardScreen() {
+  const router = useRouter();
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
   const [outings, setOutings] = useState<OutingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [routePlans, setRoutePlans] = useState<Record<string, any>>({});
 
   useEffect(() => {
     getAuth().then((user) => {
@@ -85,10 +88,24 @@ export default function VolunteerDashboardScreen() {
   const fetchOutings = useCallback(async () => {
     if (!volunteerId) return;
     try {
-      const res = await api<ApiResponse<OutingWithDetails[]>>(
-        `/api/outings?volunteer_id=${volunteerId}`
-      );
-      if (res.data) setOutings(res.data);
+      // Fetch my claimed outings + available unclaimed outings
+      const [myRes, availRes] = await Promise.all([
+        api<ApiResponse<OutingWithDetails[]>>(`/api/outings?volunteer_id=${volunteerId}`),
+        api<ApiResponse<OutingWithDetails[]>>(`/api/outings/available?volunteer_id=${volunteerId}`),
+      ]);
+      const myOutings = myRes.data || [];
+      const available = availRes.data || [];
+      // Mark available ones so we know they're unclaimed
+      const tagged = available.map((o: any) => ({ ...o, _unclaimed: true }));
+      setOutings([...myOutings, ...tagged]);
+
+      // Fetch route plans for confirmed outings
+      const confirmed = myOutings.filter((o: any) => o.status === "confirmed" && !isOutingInPast(o));
+      for (const o of confirmed) {
+        api<ApiResponse<any>>(`/api/route/${o.id}`)
+          .then((r) => { if (r.data) setRoutePlans((prev) => ({ ...prev, [o.id]: r.data })); })
+          .catch(() => {});
+      }
     } catch {
       Alert.alert("Error", "Could not load outings.");
     } finally {
@@ -107,9 +124,11 @@ export default function VolunteerDashboardScreen() {
   async function handleAction(outingId: string, status: "confirmed" | "cancelled") {
     setActionLoading(outingId + status);
     try {
+      const body: any = { status };
+      if (status === "confirmed") body.volunteer_id = volunteerId;
       const res = await api<ApiResponse<OutingWithDetails>>(`/api/outings/${outingId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
       if (res.error) {
         Alert.alert("Error", res.error);
@@ -147,7 +166,7 @@ export default function VolunteerDashboardScreen() {
     );
   }
 
-  const pending = outings.filter((o) => o.status === "pending");
+  const available = outings.filter((o: any) => o._unclaimed && o.status === "pending");
   const confirmed = outings.filter((o) => o.status === "confirmed" && !isOutingInPast(o));
   const past = outings.filter((o) => (o.status === "confirmed" || o.status === "completed") && isOutingInPast(o));
   const cancelled = outings.filter((o) => o.status === "cancelled");
@@ -161,7 +180,7 @@ export default function VolunteerDashboardScreen() {
       <Text style={styles.heading}>
         Volunteer{"\n"}<Text style={styles.headingAccent}>Dashboard</Text>
       </Text>
-      <Text style={styles.subheading}>Pull down to refresh. Accept outings to help seniors get out.</Text>
+      <Text style={styles.subheading}>Small drives, big connections.</Text>
 
       {outings.length === 0 && (
         <View style={styles.emptyCard}>
@@ -170,10 +189,10 @@ export default function VolunteerDashboardScreen() {
         </View>
       )}
 
-      {pending.length > 0 && (
+      {available.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Needs your response ({pending.length})</Text>
-          {pending.map((outing) => (
+          <Text style={styles.sectionLabel}>Available for you ({available.length})</Text>
+          {available.map((outing) => (
             <OutingCard
               key={outing.id}
               outing={outing}
@@ -200,6 +219,8 @@ export default function VolunteerDashboardScreen() {
               outing={outing}
               actionLoading={actionLoading}
               variant="confirmed"
+              routePlan={routePlans[outing.id]}
+              onPress={() => router.push(`/(volunteer)/trip?outing_id=${outing.id}`)}
               onCancel={() =>
                 Alert.alert("Cancel outing?", "This will free the ride for another volunteer.", [
                   { text: "Keep", style: "cancel" },
@@ -233,7 +254,7 @@ export default function VolunteerDashboardScreen() {
 }
 
 function OutingCard({
-  outing, actionLoading, variant, onAccept, onDecline, onCancel,
+  outing, actionLoading, variant, onAccept, onDecline, onCancel, onPress, routePlan,
 }: {
   outing: OutingWithDetails;
   actionLoading: string | null;
@@ -241,14 +262,19 @@ function OutingCard({
   onAccept?: () => void;
   onDecline?: () => void;
   onCancel?: () => void;
+  onPress?: () => void;
+  routePlan?: any;
 }) {
   const statusCfg = variant === "past"
     ? { label: "Past", color: colors.textSecondary, bg: colors.background }
     : STATUS_CONFIG[outing.status];
   const emoji = DESTINATION_EMOJI[outing.destination_type] || "\u{1F4CD}";
 
+  const Wrapper = onPress ? TouchableOpacity : View;
+  const wrapperProps = onPress ? { onPress, activeOpacity: 0.7 } : {};
+
   return (
-    <View style={styles.card}>
+    <Wrapper style={styles.card} {...wrapperProps}>
       {/* Header row */}
       <View style={styles.cardHeader}>
         <View style={styles.emojiBox}>
@@ -272,22 +298,28 @@ function OutingCard({
       <Text style={styles.passengersTitle}>
         {outing.seniors.length} passenger{outing.seniors.length !== 1 ? "s" : ""}
       </Text>
-      {outing.seniors.map((senior) => (
-        <View key={senior.id} style={styles.seniorRow}>
-          <View style={styles.seniorDot} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.seniorName}>{senior.name}</Text>
-            {senior.preferred_time_start && senior.preferred_time_end ? (
-              <Text style={styles.seniorTime}>
-                {formatTime(senior.preferred_time_start)} – {formatTime(senior.preferred_time_end)}
-              </Text>
-            ) : null}
-            {senior.address ? (
-              <Text style={styles.seniorAddress}>{senior.address}</Text>
-            ) : null}
+      {outing.seniors.map((senior) => {
+        // If we have a route plan, show planned ETA instead of time window
+        const plannedStop = routePlan?.stops?.find((s: any) => s.senior_id === senior.id);
+        return (
+          <View key={senior.id} style={styles.seniorRow}>
+            <View style={styles.seniorDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.seniorName}>{senior.name}</Text>
+              {plannedStop ? (
+                <Text style={styles.seniorTime}>Pickup: {formatTime(plannedStop.eta)}</Text>
+              ) : senior.preferred_time_start && senior.preferred_time_end ? (
+                <Text style={styles.seniorTime}>
+                  {formatTime(senior.preferred_time_start)} – {formatTime(senior.preferred_time_end)}
+                </Text>
+              ) : null}
+              {senior.address ? (
+                <Text style={styles.seniorAddress}>{senior.address}</Text>
+              ) : null}
+            </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
 
       {/* Actions — pending: Accept/Decline */}
       {variant === "pending" && (
@@ -333,7 +365,12 @@ function OutingCard({
           </TouchableOpacity>
         </View>
       )}
-    </View>
+
+      {/* View route link for confirmed outings */}
+      {variant === "confirmed" && (
+        <Text style={styles.viewRouteText}>View Route →</Text>
+      )}
+    </Wrapper>
   );
 }
 
@@ -514,5 +551,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: "700",
     color: colors.secondary,
+  },
+  viewRouteText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.secondary,
+    textAlign: "right",
+    marginTop: spacing.sm,
   },
 });

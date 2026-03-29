@@ -4,6 +4,99 @@ import { triggerAutoMatch } from "../lib/auto-match";
 
 const router = Router();
 
+// GET /api/outings/available?volunteer_id=xxx
+// Returns unclaimed outings (volunteer_id IS NULL, status = "pending") that match
+// a volunteer's availability and max_passengers.
+router.get("/available", async (req, res) => {
+  const { volunteer_id } = req.query;
+
+  if (!volunteer_id) {
+    return res.status(400).json({ data: null, error: "volunteer_id is required" });
+  }
+
+  // Fetch volunteer details
+  const { data: volunteer, error: volErr } = await supabase
+    .from("volunteers")
+    .select("*")
+    .eq("id", volunteer_id as string)
+    .single();
+
+  if (volErr || !volunteer) {
+    return res.status(404).json({ data: null, error: "Volunteer not found" });
+  }
+
+  // Fetch all unclaimed pending outings
+  const { data: outings, error: outErr } = await supabase
+    .from("outings")
+    .select("*")
+    .is("volunteer_id", null)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (outErr) return res.status(500).json({ data: null, error: outErr.message });
+
+  // Build set of volunteer availability day names
+  // availability is stored as strings like "monday_morning", "tuesday_afternoon", etc.
+  const availDays = new Set<string>();
+  for (const slot of (volunteer as any).availability || []) {
+    const day = slot.split("_")[0]; // e.g. "monday"
+    availDays.add(day);
+  }
+
+  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+  // Filter outings by volunteer availability + capacity
+  const matching = (outings || []).filter((outing: any) => {
+    // Check day-of-week matches volunteer availability
+    if (outing.scheduled_date) {
+      const outingDate = new Date(outing.scheduled_date + "T00:00:00");
+      const dayName = dayNames[outingDate.getDay()];
+      if (!availDays.has(dayName)) return false;
+    }
+
+    // Check number of seniors <= max_passengers
+    const numSeniors = (outing.request_ids || []).length;
+    if (numSeniors > ((volunteer as any).max_passengers || 4)) return false;
+
+    return true;
+  });
+
+  // Enrich with senior details
+  const enriched = await Promise.all(
+    matching.map(async (outing: any) => {
+      const { data: requests } = await supabase
+        .from("outing_requests")
+        .select("*")
+        .in("id", outing.request_ids || []);
+
+      const seniorIds = (requests || []).map((r: any) => r.senior_id);
+      const { data: seniors } = await supabase
+        .from("seniors")
+        .select("*")
+        .in("id", seniorIds);
+
+      const requestMap = new Map((requests || []).map((r: any) => [r.senior_id, r]));
+      const safeSeniors = (seniors || []).map((s: any) => {
+        const req = requestMap.get(s.id);
+        return {
+          ...s,
+          name: s.name.split(" ")[0],
+          phone: undefined,
+          password_hash: undefined,
+          emergency_contact: undefined,
+          preferred_time_start: req?.preferred_time_start || null,
+          preferred_time_end: req?.preferred_time_end || null,
+          destination_name: req?.destination_name || "",
+        };
+      });
+
+      return { ...outing, volunteer: null, seniors: safeSeniors };
+    })
+  );
+
+  res.json({ data: enriched, error: null });
+});
+
 // GET /api/outings?volunteer_id=xxx&senior_id=xxx&status=xxx
 router.get("/", async (req, res) => {
   const { volunteer_id, senior_id, status } = req.query;
@@ -23,11 +116,15 @@ router.get("/", async (req, res) => {
   // Enrich with senior and volunteer details
   const enriched = await Promise.all(
     (outings || []).map(async (outing: any) => {
-      const { data: volunteer } = await supabase
-        .from("volunteers")
-        .select("*")
-        .eq("id", outing.volunteer_id)
-        .single();
+      let volunteer = null;
+      if (outing.volunteer_id) {
+        const { data: vol } = await supabase
+          .from("volunteers")
+          .select("*")
+          .eq("id", outing.volunteer_id)
+          .single();
+        volunteer = vol;
+      }
 
       const { data: requests } = await supabase
         .from("outing_requests")
@@ -128,6 +225,11 @@ router.post("/manual", async (req, res) => {
     .update({ status: "matched" })
     .eq("id", request_id);
 
+  // Re-match after manual accept (request no longer pending, may affect other groups)
+  triggerAutoMatch().catch((e) =>
+    console.error("[outings] Auto-match after manual accept failed:", (e as Error).message)
+  );
+
   res.json({ data: outing, error: null });
 });
 
@@ -197,6 +299,10 @@ router.post("/batch", async (req, res) => {
     .from("outing_requests")
     .update({ status: "matched" })
     .in("id", request_ids);
+
+  triggerAutoMatch().catch((e) =>
+    console.error("[outings] Auto-match after batch failed:", (e as Error).message)
+  );
 
   res.json({ data: outing, error: null });
 });
@@ -284,51 +390,107 @@ router.post("/:id/add", async (req, res) => {
 
   await supabase.from("outing_requests").update({ status: "matched" }).in("id", ids);
 
+  triggerAutoMatch().catch((e) =>
+    console.error("[outings] Auto-match after add-to-ride failed:", (e as Error).message)
+  );
+
   res.json({ data: updated, error: null });
 });
 
 // PATCH /api/outings/:id
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, volunteer_id } = req.body;
 
   if (!status || !["confirmed", "cancelled"].includes(status)) {
     return res.status(400).json({ data: null, error: "Status must be 'confirmed' or 'cancelled'" });
   }
 
-  // If cancelling, reset associated requests back to pending
-  if (status === "cancelled") {
-    const { data: outing } = await supabase
+  // Fetch the current outing
+  const { data: outing, error: fetchErr } = await supabase
+    .from("outings")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !outing) {
+    return res.status(404).json({ data: null, error: "Outing not found" });
+  }
+
+  // ACCEPT: volunteer claims an unclaimed outing
+  if (status === "confirmed") {
+    if (!volunteer_id) {
+      return res.status(400).json({ data: null, error: "volunteer_id is required to confirm an outing" });
+    }
+
+    // First come first served: only allow if outing has no volunteer yet
+    if (outing.volunteer_id && outing.volunteer_id !== volunteer_id) {
+      return res.status(409).json({ data: null, error: "This outing has already been claimed by another volunteer" });
+    }
+
+    const { data: updated, error: updateErr } = await supabase
       .from("outings")
-      .select("request_ids")
+      .update({ status: "confirmed", volunteer_id })
       .eq("id", id)
+      .select()
       .single();
 
-    if (outing?.request_ids) {
+    if (updateErr) return res.status(500).json({ data: null, error: updateErr.message });
+
+    // Re-match: other groups may need recalculation since seniors in this group are no longer available
+    triggerAutoMatch().catch((e) =>
+      console.error("[outings] Auto-match after accept failed:", (e as Error).message)
+    );
+
+    return res.json({ data: updated, error: null });
+  }
+
+  // CANCEL: volunteer releases the outing back to unclaimed
+  if (status === "cancelled") {
+    // If this outing has a volunteer (confirmed outing being cancelled by volunteer),
+    // unclaim it instead of fully cancelling — set volunteer_id to null and status back to pending
+    if (outing.volunteer_id && outing.status === "confirmed") {
+      const { data: updated, error: updateErr } = await supabase
+        .from("outings")
+        .update({ status: "pending", volunteer_id: null })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (updateErr) return res.status(500).json({ data: null, error: updateErr.message });
+      // Requests stay as "matched" since the group is still valid, just needs a new volunteer
+      // Re-match in case new groups can be formed
+      triggerAutoMatch().catch((e) =>
+        console.error("[outings] Auto-match after unclaim failed:", (e as Error).message)
+      );
+      return res.json({ data: updated, error: null });
+    }
+
+    // If it's an unclaimed pending outing being cancelled (admin action), fully cancel it
+    // and reset requests back to pending
+    if (outing.request_ids) {
       await supabase
         .from("outing_requests")
         .update({ status: "pending" })
         .in("id", outing.request_ids);
     }
-  }
 
-  const { data, error } = await supabase
-    .from("outings")
-    .update({ status })
-    .eq("id", id)
-    .select()
-    .single();
+    const { data: updated, error: updateErr } = await supabase
+      .from("outings")
+      .update({ status: "cancelled" })
+      .eq("id", id)
+      .select()
+      .single();
 
-  if (error) return res.status(500).json({ data: null, error: error.message });
+    if (updateErr) return res.status(500).json({ data: null, error: updateErr.message });
 
-  // Re-match after cancel (requests went back to pending)
-  if (status === "cancelled") {
+    // Re-match after cancel (requests went back to pending)
     triggerAutoMatch().catch((e) =>
       console.error("[outings] Auto-match after cancel failed:", (e as Error).message)
     );
-  }
 
-  res.json({ data, error: null });
+    return res.json({ data: updated, error: null });
+  }
 });
 
 export default router;

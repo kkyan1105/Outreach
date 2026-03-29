@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   interestHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   infoRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   infoLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textSecondary, width: 90 },
-  infoValue: { flex: 1, fontSize: fontSize.md, color: colors.textPrimary },
+  infoValue: { flex: 1, fontSize: fontSize.md, fontWeight: "500", color: colors.textPrimary, textAlign: "right", marginRight: spacing.md },
   editBtn: { fontSize: fontSize.sm, fontWeight: "600", color: colors.primary },
   editRow: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   editInput: { backgroundColor: colors.background, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.primary, paddingHorizontal: spacing.sm, paddingVertical: 10, fontSize: fontSize.md, color: colors.textPrimary, marginVertical: spacing.xs },

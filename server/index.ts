@@ -12,6 +12,7 @@ import requestsRouter from "./routes/requests";
 import outingsRouter from "./routes/outings";
 import statsRouter from "./routes/stats";
 import authRouter from "./routes/auth";
+import routeRouter from "./routes/route";
 
 const app = express();
 app.use(cors());
@@ -23,6 +24,7 @@ app.use("/api/requests", requestsRouter);
 app.use("/api/outings", outingsRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/route", routeRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });

@@ -19,21 +19,12 @@ interface MatchInput {
     preferred_date: string;
     time_window: string;
   }[];
-  available_volunteers: {
-    volunteer_id: string;
-    name: string;
-    lat: number;
-    lng: number;
-    max_passengers: number;
-    availability: string[];
-  }[];
   cluster_hints?: any[];
 }
 
 interface MatchOutput {
   groups: {
     senior_ids: string[];
-    volunteer_id: string;
     suggested_time: string;
     destination_type: string;
     suggested_destination: string;
@@ -51,7 +42,7 @@ export async function runMatching(input: MatchInput): Promise<MatchOutput> {
       { role: "system", content: MATCHING_SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Here are the pending outing requests and available volunteers. Please group them optimally.\n\n${JSON.stringify(input, null, 2)}`,
+        content: `Here are the pending outing requests. Please group them optimally.\n\n${JSON.stringify(input, null, 2)}`,
       },
     ],
   });

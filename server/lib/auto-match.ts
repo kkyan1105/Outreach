@@ -1,13 +1,12 @@
 import { supabase } from "./supabase";
-import { runMatching } from "./claude";
-import { preClusterRequests, findNearestVolunteer } from "./clustering";
+import { groupRequests } from "./grouping";
 
 let isRunning = false;
 
 /**
- * Auto-trigger matching logic — same as the match route but without Express req/res.
- * Safe to call fire-and-forget; logs errors but never throws.
- * Uses a lock to prevent concurrent runs.
+ * Auto-trigger matching logic — groups seniors into outings WITHOUT assigning volunteers.
+ * Uses Compatibility Graph + Bron-Kerbosch algorithm (no LLM).
+ * Volunteers claim outings later via the available outings endpoint.
  */
 export async function triggerAutoMatch(): Promise<void> {
   if (isRunning) {
@@ -19,7 +18,7 @@ export async function triggerAutoMatch(): Promise<void> {
     // 1. Get all pending requests with senior info
     const { data: requests, error: reqErr } = await supabase
       .from("outing_requests")
-      .select("*, seniors(id, name, lat, lng, interests, mobility_notes)")
+      .select("*, seniors(id, name, lat, lng)")
       .eq("status", "pending");
 
     if (reqErr) {
@@ -31,145 +30,81 @@ export async function triggerAutoMatch(): Promise<void> {
       return;
     }
 
-    // 2. Get all volunteers
-    const { data: volunteers, error: volErr } = await supabase
-      .from("volunteers")
-      .select("*");
-
-    if (volErr) {
-      console.error("[auto-match] Failed to fetch volunteers:", volErr.message);
-      return;
-    }
-    if (!volunteers || volunteers.length === 0) {
-      console.log("[auto-match] No volunteers available — skipping.");
-      return;
-    }
-
-    // 3. Filter out volunteers already assigned to a pending/confirmed outing
-    const { data: activeOutings } = await supabase
-      .from("outings")
-      .select("volunteer_id")
-      .in("status", ["pending", "confirmed"]);
-
-    const busyVolunteerIds = new Set((activeOutings || []).map((o: any) => o.volunteer_id));
-    const availableVolunteers = volunteers.filter((v: any) => !busyVolunteerIds.has(v.id));
-
-    if (availableVolunteers.length === 0) {
-      console.log("[auto-match] All volunteers are busy — skipping.");
-      return;
-    }
-
-    // 4. DBSCAN pre-clustering by destination + geography
-    const clusterInput = requests.map((r: any) => ({
+    // 2. Build request nodes for the grouping algorithm
+    const nodes = requests.map((r: any) => ({
+      id: r.id,
       senior_id: r.senior_id,
+      destination_type: r.destination_type,
+      destination_name: r.destination_name || "",
+      preferred_date: r.preferred_date,
+      preferred_time_start: r.preferred_time_start || "00:00",
+      preferred_time_end: r.preferred_time_end || "23:59",
       lat: r.seniors?.lat || 0,
       lng: r.seniors?.lng || 0,
-      destination_type: r.destination_type,
     }));
-    const preClusters = preClusterRequests(clusterInput, 5);
 
-    // Find nearest volunteer for each cluster
-    const volunteerPoints = availableVolunteers.map((v: any) => ({
-      volunteer_id: v.id,
-      lat: v.lat,
-      lng: v.lng,
-    }));
-    const assignedVolunteers = new Set<string>();
-    const clusterHints = preClusters.map((c) => {
-      const nearest = findNearestVolunteer(c.center, volunteerPoints, assignedVolunteers);
-      if (nearest) assignedVolunteers.add(nearest.volunteer_id);
-      return {
-        ...c,
-        suggested_volunteer_id: nearest?.volunteer_id || null,
-        volunteer_distance_miles: nearest?.distance ? Math.round(nearest.distance * 10) / 10 : null,
-      };
-    });
+    // 3. Run grouping algorithm (DBSCAN + Compatibility Graph + Bron-Kerbosch)
+    const groups = groupRequests(nodes);
 
-    // 5. Build AI input with clustering hints
-    const input = {
-      pending_requests: requests.map((r: any) => ({
-        request_id: r.id,
-        senior_id: r.senior_id,
-        name: r.seniors?.name || "Unknown",
-        lat: r.seniors?.lat || 0,
-        lng: r.seniors?.lng || 0,
-        destination_type: r.destination_type,
-        destination_name: r.destination_name || "",
-        preferred_date: r.preferred_date,
-        time_window: `${r.preferred_time_start}-${r.preferred_time_end}`,
-        mobility_notes: r.seniors?.mobility_notes || "",
-      })),
-      available_volunteers: availableVolunteers.map((v: any) => ({
-        volunteer_id: v.id,
-        name: v.name,
-        lat: v.lat,
-        lng: v.lng,
-        max_passengers: v.max_passengers,
-        availability: v.availability,
-        vehicle_type: v.vehicle_type,
-      })),
-      cluster_hints: clusterHints,
-    };
+    if (groups.length === 0) {
+      console.log("[auto-match] No valid groups found.");
+      return;
+    }
 
-    // 6. Call AI for matching
-    const matchResult = await runMatching(input);
-
-    // 7. Validate AI output
-    const validSeniorIds = new Set(requests.map((r: any) => r.senior_id));
-    const validVolunteerIds = new Set(availableVolunteers.map((v: any) => v.id));
-
-    const validGroups = matchResult.groups.filter((group: any) => {
-      const seniorsValid = group.senior_ids.every((id: string) => validSeniorIds.has(id));
-      const volunteerValid = validVolunteerIds.has(group.volunteer_id);
-      return seniorsValid && volunteerValid && group.senior_ids.length > 0;
-    });
-
-    // 8. Fetch cancelled outings to avoid re-creating them
-    const { data: cancelledOutings } = await supabase
-      .from("outings")
-      .select("volunteer_id, request_ids")
-      .eq("status", "cancelled");
-
-    const cancelledKeys = new Set(
-      (cancelledOutings || []).map((o: any) =>
-        `${o.volunteer_id}:${(o.request_ids || []).sort().join(",")}`
-      )
-    );
-
-    // 9. Create outing records and update request statuses
+    // 4. Create outing records (with null volunteer_id)
     let created = 0;
-    for (const group of validGroups) {
-      const requestIds = requests
-        .filter((r: any) => group.senior_ids.includes(r.senior_id))
-        .map((r: any) => r.id);
-
-      // Re-check that all requests are still pending (prevent duplicates)
+    for (const group of groups) {
+      // Re-check that all requests are still pending
       const { data: freshReqs } = await supabase
         .from("outing_requests")
         .select("id, status")
-        .in("id", requestIds);
+        .in("id", group.request_ids);
       const stillPending = (freshReqs || []).filter((r: any) => r.status === "pending").map((r: any) => r.id);
-      if (stillPending.length === 0) {
-        console.log("[auto-match] All requests in group already matched — skipping.");
+      if (stillPending.length < 2) {
+        console.log("[auto-match] Not enough pending requests in group — skipping.");
         continue;
       }
 
-      // Skip if this exact volunteer + requests combo was previously cancelled
-      const comboKey = `${group.volunteer_id}:${stillPending.sort().join(",")}`;
-      if (cancelledKeys.has(comboKey)) {
-        console.log("[auto-match] Skipping previously cancelled group.");
+      // Check for duplicate: existing pending outing with same senior_ids
+      const sortedSeniorIds = [...group.senior_ids].sort();
+      const { data: existingOutings } = await supabase
+        .from("outings")
+        .select("id, request_ids")
+        .eq("status", "pending")
+        .eq("destination_type", group.destination_type);
+
+      let isDuplicate = false;
+      if (existingOutings) {
+        for (const existing of existingOutings) {
+          const { data: existingReqs } = await supabase
+            .from("outing_requests")
+            .select("senior_id")
+            .in("id", existing.request_ids || []);
+          const existingSeniorIds = (existingReqs || []).map((r: any) => r.senior_id).sort();
+          if (JSON.stringify(existingSeniorIds) === JSON.stringify(sortedSeniorIds)) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+      if (isDuplicate) {
+        console.log("[auto-match] Duplicate group detected — skipping.");
         continue;
       }
 
       const { error: outErr } = await supabase
         .from("outings")
         .insert({
-          volunteer_id: group.volunteer_id,
+          volunteer_id: null,
           request_ids: stillPending,
-          scheduled_date: requests.find((r: any) => group.senior_ids.includes(r.senior_id))?.preferred_date,
+          scheduled_date: group.preferred_date,
           scheduled_time: group.suggested_time,
           destination_type: group.destination_type,
-          route_info: { reasoning: group.reasoning, suggested_destination: group.suggested_destination || "" },
+          route_info: {
+            reasoning: group.reasoning,
+            suggested_destination: group.suggested_destination,
+            algorithm: "DBSCAN + Compatibility Graph + Bron-Kerbosch",
+          },
           status: "pending",
         })
         .select()
@@ -188,7 +123,7 @@ export async function triggerAutoMatch(): Promise<void> {
         .in("id", stillPending);
     }
 
-    console.log(`[auto-match] Created ${created} outings from ${validGroups.length} groups.`);
+    console.log(`[auto-match] Created ${created} outings from ${groups.length} groups.`);
   } catch (e) {
     console.error("[auto-match] Unexpected error:", (e as Error).message);
   } finally {
