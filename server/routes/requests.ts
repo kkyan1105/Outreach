@@ -72,6 +72,23 @@ router.get("/", async (req, res) => {
   // Strip internal _distance and nested seniors join from response
   const cleaned = results.map(({ _distance, seniors, ...rest }: any) => rest);
 
+  // For matched requests, check if the outing has a volunteer (confirmed) or not (waiting)
+  if (senior_id) {
+    const { data: outings } = await supabase
+      .from("outings")
+      .select("id, volunteer_id, status, request_ids")
+      .in("status", ["pending", "confirmed"]);
+
+    for (const req of cleaned) {
+      if (req.status === "matched") {
+        const outing = (outings || []).find((o: any) => (o.request_ids || []).includes(req.id));
+        if (outing) {
+          req._outing_status = outing.volunteer_id ? "confirmed" : "waiting";
+        }
+      }
+    }
+  }
+
   res.json({ data: cleaned, error: null });
 });
 

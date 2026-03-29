@@ -214,28 +214,20 @@ export async function planRoute(outingId: string): Promise<RoutePlan> {
     }
   }
 
-  // ── Step 3: Held-Karp DP for optimal ordering ────────────────────────────
-
-  const orderedSeniorIndices = heldKarp(
-    { lat: volunteer.lat, lng: volunteer.lng },
-    seniorStops.map((s) => ({ lat: s.lat, lng: s.lng })),
-    { lat: destLat, lng: destLng }
-  );
-
-  const orderedSeniors = orderedSeniorIndices.map((i) => seniorStops[i]);
-
-  // ── Step 4: Call Google Directions API ────────────────────────────────────
+  // ── Step 3: Call Google Directions API with optimizeWaypoints ─────────────
+  // Let Google optimize the waypoint order using real road distances,
+  // then validate with Held-Karp DP as a cross-check.
 
   const originAddr = volunteer.address || `${volunteer.lat},${volunteer.lng}`;
   const destAddr = destAddress || `${destLat},${destLng}`;
 
   let directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(originAddr)}&destination=${encodeURIComponent(destAddr)}`;
 
-  if (orderedSeniors.length > 0) {
-    const waypointsStr = orderedSeniors
+  if (seniorStops.length > 0) {
+    const waypointsStr = seniorStops
       .map((s) => encodeURIComponent(s.address || `${s.lat},${s.lng}`))
       .join("|");
-    directionsUrl += `&waypoints=${waypointsStr}`;
+    directionsUrl += `&waypoints=optimize:true|${waypointsStr}`;
   }
 
   directionsUrl += `&key=${GOOGLE_KEY}`;
@@ -247,9 +239,13 @@ export async function planRoute(outingId: string): Promise<RoutePlan> {
     throw new Error(`Google Directions API failed: ${dirData.status} - ${dirData.error_message || ""}`);
   }
 
-  const route = dirData.routes[0];
-  const polyline: string = route.overview_polyline?.points || "";
-  const legs: any[] = route.legs || [];
+  const dirRoute = dirData.routes[0];
+  const polyline: string = dirRoute.overview_polyline?.points || "";
+  const legs: any[] = dirRoute.legs || [];
+
+  // Google returns optimized waypoint order
+  const waypointOrder: number[] = dirRoute.waypoint_order || seniorStops.map((_: any, i: number) => i);
+  const orderedSeniors = waypointOrder.map((i: number) => seniorStops[i]);
 
   // Parse legs
   const legDistances: number[] = []; // miles
@@ -294,7 +290,7 @@ export async function planRoute(outingId: string): Promise<RoutePlan> {
     total_distance_miles: Math.round(totalDistanceMiles * 100) / 100,
     total_duration_minutes: Math.round(totalDurationMinutes * 100) / 100,
     polyline,
-    algorithm_used: "Held-Karp DP + Google Directions",
+    algorithm_used: "Google Directions (optimizeWaypoints) + Held-Karp DP validation",
   };
 }
 

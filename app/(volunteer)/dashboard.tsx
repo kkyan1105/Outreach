@@ -284,9 +284,8 @@ function OutingCard({
           <Text style={styles.destType}>
             {outing.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}
           </Text>
-          <Text style={styles.dateTime}>
-            {formatDate(outing.scheduled_date)} · {formatTime(outing.scheduled_time)}
-          </Text>
+          <Text style={styles.dateTime}>{formatDate(outing.scheduled_date)}</Text>
+          <Text style={styles.dateTime}>Depart: {formatTime(routePlan?.departure_time || outing.scheduled_time)}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
           <Text style={[styles.statusLabel, { color: statusCfg.color }]}>{statusCfg.label}</Text>

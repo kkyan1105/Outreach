@@ -237,7 +237,7 @@ export default function SeniorRequestScreen() {
         Alert.alert(
           "Request Sent!",
           "We'll find nearby seniors going to the same place and match you with a volunteer driver.",
-          [{ text: "View My Status", onPress: () => router.replace("/(senior)/status") }]
+          [{ text: "View My Status", onPress: () => { router.navigate("/(senior)/status"); setTimeout(() => router.navigate("/(senior)/status"), 300); } }]
         );
       }
     } catch {

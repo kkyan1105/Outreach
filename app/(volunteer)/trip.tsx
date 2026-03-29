@@ -261,31 +261,27 @@ export default function TripDetailScreen() {
 
               {/* Pickup markers with numbers */}
               {pickupStops.map((stop, idx) => (
-                <Marker key={stop.senior_id || idx} coordinate={{ latitude: stop.lat, longitude: stop.lng }} pinColor={stop.within_window ? colors.primary : colors.tileGold}>
+                <Marker
+                  key={stop.senior_id || `pickup-${idx}`}
+                  coordinate={{ latitude: stop.lat, longitude: stop.lng }}
+                  pinColor="green"
+                  tracksViewChanges={false}
+                >
                   <View style={styles.numberedPin}>
                     <Text style={styles.numberedPinText}>{idx + 1}</Text>
                   </View>
-                  <Callout>
-                    <View style={{ padding: 4, minWidth: 120 }}>
-                      <Text style={{ fontWeight: "700" }}>Stop {idx + 1}: {stop.senior_name}</Text>
-                      <Text style={{ fontSize: 12, color: "#666" }}>ETA: {formatTime(stop.eta)}</Text>
-                    </View>
-                  </Callout>
                 </Marker>
               ))}
 
               {/* Destination marker */}
               {destinationStop && (
-                <Marker coordinate={{ latitude: destinationStop.lat, longitude: destinationStop.lng }}>
+                <Marker
+                  coordinate={{ latitude: destinationStop.lat, longitude: destinationStop.lng }}
+                  tracksViewChanges={false}
+                >
                   <View style={[styles.numberedPin, { backgroundColor: colors.secondary }]}>
                     <Text style={styles.numberedPinText}>🏁</Text>
                   </View>
-                  <Callout>
-                    <View style={{ padding: 4, minWidth: 120 }}>
-                      <Text style={{ fontWeight: "700" }}>{route.destination.name}</Text>
-                      <Text style={{ fontSize: 12, color: "#666" }}>ETA: {formatTime(destinationStop.eta)}</Text>
-                    </View>
-                  </Callout>
                 </Marker>
               )}
 

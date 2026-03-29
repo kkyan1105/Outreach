@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Alert, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 import { api } from "../../lib/api";
 import { getAuth } from "../../lib/auth";
@@ -20,12 +21,24 @@ const DESTINATION_EMOJI: Record<string, string> = {
   other: "📍",
 };
 
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   pending: {
     label: "Looking for a group…",
     color: colors.tileGold,
     bg: "#FFF8EC",
     dot: colors.tileGold,
+  },
+  waiting: {
+    label: "Matched! Waiting for driver...",
+    color: "#2563EB",
+    bg: "#EFF6FF",
+    dot: "#2563EB",
+  },
+  confirmed: {
+    label: "Driver confirmed!",
+    color: colors.primary,
+    bg: colors.primaryLight,
+    dot: colors.primary,
   },
   matched: {
     label: "You're matched!",
@@ -85,7 +98,12 @@ export default function SeniorStatusScreen() {
     }
   }, [seniorId]);
 
-  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+  useFocusEffect(useCallback(() => {
+    fetchRequests();
+    // Auto-refresh every 5 seconds while on this screen
+    const interval = setInterval(fetchRequests, 2000);
+    return () => clearInterval(interval);
+  }, [fetchRequests]));
 
   async function confirmCancel() {
     if (!cancelTarget) return;
@@ -188,8 +206,10 @@ export default function SeniorStatusScreen() {
   );
 }
 
-function RequestCard({ request, onCancel }: { request: OutingRequest; onCancel?: () => void }) {
-  const cfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
+function RequestCard({ request, onCancel }: { request: OutingRequest & { _outing_status?: string }; onCancel?: () => void }) {
+  // Use _outing_status for matched requests to show waiting vs confirmed
+  const displayStatus = (request as any)._outing_status || request.status;
+  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.pending;
   const emoji = DESTINATION_EMOJI[request.destination_type] || "📍";
   const destLabel = request.destination_type.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const canCancel = !!onCancel && (request.status === "pending" || request.status === "matched");
