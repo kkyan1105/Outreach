@@ -1,6 +1,8 @@
-# Senior Outing
+# Outreach
 
-> AI-powered app that groups nearby seniors into social outings with volunteer drivers — fighting senior loneliness at scale.
+> *Step out together, age together.*
+
+AI-powered app that groups nearby seniors into social outings with volunteer drivers — fighting senior loneliness at scale.
 
 🏆 **Grand Prize Winner** — Vanderbilt University Global Good Hackathon (NSBE & WIC, March 2026)
 
